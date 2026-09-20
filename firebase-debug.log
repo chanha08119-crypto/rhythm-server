@@ -1,0 +1,26 @@
+[debug] [2026-08-28T08:04:32.583Z] ----------------------------------------------------------------------
+[debug] [2026-08-28T08:04:32.585Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\nyanc\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js init
+[debug] [2026-08-28T08:04:32.585Z] CLI Version:   15.28.2
+[debug] [2026-08-28T08:04:32.585Z] Platform:      win32
+[debug] [2026-08-28T08:04:32.585Z] Node Version:  v24.20.0
+[debug] [2026-08-28T08:04:32.585Z] Detected Agent: unknown
+[debug] [2026-08-28T08:04:32.585Z] Time:          Fri Aug 28 2026 17:04:32 GMT+0900 (한국 표준시)
+[debug] [2026-08-28T08:04:32.585Z] ----------------------------------------------------------------------
+[debug] 
+[info] 
+     ######## #### ########  ######## ########     ###     ######  ########
+     ##        ##  ##     ## ##       ##     ##  ##   ##  ##       ##
+     ######    ##  ########  ######   ########  #########  ######  ######
+     ##        ##  ##    ##  ##       ##     ## ##     ##       ## ##
+     ##       #### ##     ## ######## ########  ##     ##  ######  ########
+
+You're about to initialize a Firebase project in this directory:
+
+  C:\Users\nyanc\OneDrive\Desktop\rhythm-server
+
+[info] 
+=== Project Setup
+[info] 
+[info] First, let's associate this project directory with a Firebase project.
+[info] You can create multiple project aliases by running firebase use --add, 
+[info] 

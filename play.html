@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>4K RHYTHM — Play</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="./css/app.css">
+</head>
+<body class="relative w-screen h-screen select-none">
+
+    <div id="menu-ui" class="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-30 backdrop-blur-sm">
+        <div id="user-bar" class="absolute top-6 right-6 flex items-center gap-3 bg-gray-900/90 border border-gray-700 px-4 py-2 rounded-full">
+            <span id="user-info-text" class="text-sm text-gray-300 font-bold cursor-pointer hover:text-blue-400 transition-colors" onclick="openProfileModal()">👤 게스트</span>
+            <button id="auth-btn" onclick="openAuthModal()" class="text-xs bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-full transition-colors">로그인 / 회원가입</button>
+        </div>
+
+        <h1 class="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 mb-2">4K RHYTHM</h1>
+        <p class="text-gray-400 mb-2">플레이 클라이언트</p>
+        <p class="text-gray-500 text-sm mb-12">업로드된 맵을 플레이합니다. 패턴 제작은 에디터에서 하세요.</p>
+
+        <div class="flex flex-col gap-4 w-80">
+            <button onclick="showUI('song-select-ui')" class="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 rounded-xl font-bold text-xl shadow-lg transition-transform active:scale-95">
+                곡 선택 / 플레이
+            </button>
+            <button onclick="showUI('settings-ui')" class="w-full py-4 bg-gray-800 hover:bg-gray-700 rounded-xl font-bold text-xl shadow-lg transition-transform active:scale-95 border border-gray-600">
+                설정 (조작키/속도)
+            </button>
+            <a href="./editor.html" class="w-full py-3 bg-transparent hover:bg-gray-800 rounded-xl font-bold text-sm text-gray-400 text-center border border-gray-700">에디터로 이동</a>
+        </div>
+    </div>
+
+    <div id="auth-modal" class="absolute inset-0 flex items-center justify-center bg-black/90 z-50 hidden backdrop-blur-md">
+        <div class="bg-gray-900 border border-gray-700 rounded-2xl p-8 w-96 flex flex-col gap-5 shadow-2xl relative">
+            <button onclick="closeAuthModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white font-bold text-xl">✕</button>
+            <h3 class="text-2xl font-black text-white text-center">유저 로그인 / 회원가입</h3>
+            <p class="text-xs text-gray-400 text-center">같은 계정으로 에디터와 플레이 클라이언트를 이용할 수 있습니다.</p>
+
+            <div class="flex items-center gap-2 my-1">
+                <div class="h-px bg-gray-700 flex-1"></div>
+                <span class="text-xs text-gray-500 uppercase">이메일 또는 닉네임으로 로그인</span>
+                <div class="h-px bg-gray-700 flex-1"></div>
+            </div>
+
+            <div class="flex flex-col gap-3">
+                <input type="text" id="auth-email" placeholder="이메일 또는 닉네임 (로그인 시 필수)" class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
+                <input type="text" id="auth-nickname" placeholder="닉네임 입력 (새 회원가입 시 필수)" class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
+                <input type="password" id="auth-password" placeholder="비밀번호" class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
+                <div class="flex gap-2">
+                    <button onclick="loginWithEmail()" class="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-sm">로그인</button>
+                    <button onclick="signUpWithEmail()" class="flex-1 py-2.5 bg-gray-700 hover:bg-gray-600 rounded-xl font-bold text-sm">회원가입</button>
+                </div>
+            </div>
+
+            <button onclick="loginAsGuest()" class="w-full py-2 bg-gray-800 hover:bg-gray-700 rounded-xl font-bold text-xs text-gray-400">게스트 모드로 계속 사용</button>
+        </div>
+    </div>
+
+    <div id="profile-modal" class="absolute inset-0 flex items-center justify-center bg-black/90 z-50 hidden backdrop-blur-md">
+        <div class="bg-gray-900 border border-gray-700 rounded-2xl p-8 w-96 flex flex-col gap-5 shadow-2xl relative">
+            <button onclick="closeProfileModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white font-bold text-xl">✕</button>
+            <h3 class="text-2xl font-black text-white text-center">프로필</h3>
+
+            <div class="bg-gray-800 rounded-xl p-4 flex flex-col gap-3">
+                <div>
+                    <p class="text-xs text-gray-500 uppercase">닉네임</p>
+                    <p id="profile-nickname" class="text-lg font-bold text-blue-400">로딩중...</p>
+                </div>
+
+                <div class="border-t border-gray-700 pt-3">
+                    <p class="text-xs text-gray-500 uppercase">고유 계정 ID</p>
+                    <p id="profile-unique-id" class="text-sm font-mono text-green-400 break-all">로딩중...</p>
+                    <button onclick="copyUniqueId()" class="mt-2 w-full py-2 bg-green-600 hover:bg-green-500 rounded-lg font-bold text-xs text-white">ID 복사</button>
+                </div>
+
+                <div class="border-t border-gray-700 pt-3">
+                    <p class="text-xs text-gray-500 uppercase">활성 설정</p>
+                    <div class="text-xs text-gray-300 mt-1">
+                        <p>조작키: <span id="profile-keys" class="font-mono text-purple-400">로딩중...</span></p>
+                        <p>속도: <span id="profile-speed" class="font-mono text-purple-400">로딩중...</span></p>
+                        <p>오프셋: <span id="profile-offset" class="font-mono text-purple-400">로딩중...</span></p>
+                    </div>
+                </div>
+            </div>
+
+            <button onclick="closeProfileModal()" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold text-sm">닫기</button>
+        </div>
+    </div>
+
+    <div id="settings-ui" class="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-40 hidden backdrop-blur-md">
+        <h2 class="text-4xl font-black mb-8">SETTINGS</h2>
+        <div class="bg-gray-900 p-8 rounded-2xl border border-gray-700 w-96 flex flex-col gap-6">
+            <div>
+                <label class="font-bold text-gray-300 mb-2 block">조작키 설정 (클릭 후 변경)</label>
+                <div class="flex justify-between gap-2">
+                    <button id="key-btn-0" onclick="startKeyBind(0)" class="flex-1 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-black text-xl border-b-4 border-gray-900 text-white uppercase transition-colors">D</button>
+                    <button id="key-btn-1" onclick="startKeyBind(1)" class="flex-1 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-black text-xl border-b-4 border-gray-900 text-white uppercase transition-colors">F</button>
+                    <button id="key-btn-2" onclick="startKeyBind(2)" class="flex-1 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-black text-xl border-b-4 border-gray-900 text-white uppercase transition-colors">J</button>
+                    <button id="key-btn-3" onclick="startKeyBind(3)" class="flex-1 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-black text-xl border-b-4 border-gray-900 text-white uppercase transition-colors">K</button>
+                </div>
+                <p id="keybind-msg" class="text-xs text-yellow-400 mt-2 h-4 text-center opacity-0 transition-opacity">변경할 키를 키보드에서 누르세요.</p>
+            </div>
+
+            <div>
+                <div class="flex justify-between mb-2"><label class="font-bold text-gray-300">스크롤 속도</label><span id="speed-val" class="text-blue-400 font-bold">1.5x</span></div>
+                <input type="range" id="speed-slider" min="0.5" max="3.0" step="0.1" value="1.5" class="w-full accent-blue-500">
+            </div>
+            <div>
+                <div class="flex justify-between mb-2"><label class="font-bold text-gray-300">판정 오프셋 (ms)</label><span id="offset-val" class="text-purple-400 font-bold">0ms</span></div>
+                <input type="range" id="offset-slider" min="-200" max="200" step="10" value="0" class="w-full accent-purple-500">
+            </div>
+            <button onclick="openOffsetCalibration()" class="w-full py-3 bg-purple-700 hover:bg-purple-600 rounded-xl font-bold">박자에 맞춰 오프셋 보정</button>
+
+            <button onclick="showUI('menu-ui')" class="mt-4 w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-lg">완료</button>
+        </div>
+    </div>
+
+    <div id="offset-calibration-ui" class="absolute inset-0 flex items-center justify-center bg-black/95 z-50 hidden backdrop-blur-md">
+        <div class="bg-gray-900 border border-purple-500 rounded-2xl p-8 w-96 text-center shadow-2xl">
+            <h2 class="text-3xl font-black text-purple-300">박자 오프셋 보정</h2>
+            <p class="text-sm text-gray-400 mt-3">소리와 빛이 켜지는 순간에 맞춰 스페이스바 또는 아래 버튼을 8번 누르세요.</p>
+            <div id="calibration-signal" class="w-28 h-28 rounded-full mx-auto my-8 bg-gray-700"></div>
+            <p class="text-sm font-bold text-gray-300">탭 횟수 <span id="calibration-count" class="text-purple-300">0 / 8</span></p>
+            <p id="calibration-feedback" class="h-6 text-sm text-gray-400 mt-1">대기 중</p>
+            <p id="calibration-result" class="min-h-12 mt-4 text-sm text-gray-300">시작을 누른 뒤, 빛과 소리에 맞춰 8번 탭하세요.</p>
+            <div class="flex gap-3 mt-6">
+                <button onclick="startOffsetCalibration()" class="flex-1 py-3 bg-purple-700 hover:bg-purple-600 rounded-lg font-bold">시작</button>
+                <button id="calibration-tap-button" onclick="tapCalibrationBeat()" class="flex-1 py-3 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold">박자 탭</button>
+            </div>
+            <button onclick="closeOffsetCalibration()" class="mt-4 text-sm text-gray-400 hover:text-white">취소</button>
+        </div>
+    </div>
+
+    <div id="song-select-ui" class="absolute inset-0 flex flex-col items-center pt-24 bg-black/90 z-30 hidden backdrop-blur-md">
+        <h2 class="text-4xl font-black mb-8 text-white">SELECT MAP</h2>
+
+        <div class="w-full max-w-2xl flex gap-6">
+            <div id="song-list" class="flex-1 flex flex-col gap-3 h-96 overflow-y-auto pr-2"></div>
+
+            <div class="w-64 bg-gray-900 border border-gray-700 rounded-xl p-6 flex flex-col gap-4">
+                <div>
+                    <h3 id="info-title" class="text-xl font-bold text-white truncate">곡 제목</h3>
+                    <div class="mt-4 text-sm text-gray-300">
+                        <p>난이도: <span id="info-difficulty" class="text-purple-400 font-bold">5</span></p>
+                        <p>노트 수: <span id="info-notes" class="text-blue-400 font-bold">0</span></p>
+                        <p class="text-xs text-gray-400 mt-1">작성자: <span id="info-creator" class="text-gray-200">System</span></p>
+                    </div>
+                </div>
+                <p id="upload-status" class="text-xs text-green-400 hidden">오디오 로드 완료</p>
+
+                <div class="flex flex-col gap-2 mt-auto">
+                    <button onclick="startGame('PLAY')" class="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold">플레이</button>
+                </div>
+            </div>
+        </div>
+
+        <button onclick="showUI('menu-ui')" class="mt-8 px-8 py-3 bg-gray-800 hover:bg-gray-700 rounded-xl font-bold border border-gray-600">뒤로가기</button>
+    </div>
+
+    <div id="game-ui" class="absolute inset-0 pointer-events-none hidden z-10 flex flex-col items-center justify-between py-12">
+        <div id="play-hud" class="flex w-full px-12 justify-between items-start w-full hidden">
+            <div>
+                <p class="text-gray-400 font-bold text-sm">SCORE</p>
+                <p id="score-text" class="text-4xl font-black font-mono">0000000</p>
+            </div>
+            <div class="text-right">
+                <p class="text-gray-400 font-bold text-sm">ACCURACY</p>
+                <p id="acc-text" class="text-4xl font-black font-mono">100.00%</p>
+            </div>
+        </div>
+
+        <div class="text-center mt-32">
+            <p id="combo-text" class="text-6xl font-black font-mono text-white opacity-0 transition-opacity">0</p>
+            <p id="combo-label" class="text-xl font-bold text-gray-400 opacity-0 transition-opacity">COMBO</p>
+        </div>
+
+        <div id="judge-display" class="absolute top-2/3 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-5xl font-black text-center w-full hidden">
+            PERFECT
+        </div>
+    </div>
+
+    <div id="result-ui" class="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-30 hidden backdrop-blur-md">
+        <h2 class="text-5xl font-black mb-8 text-white">RESULT</h2>
+        <div class="bg-gray-900 p-8 rounded-2xl border border-gray-700 w-96 flex flex-col gap-4 text-xl font-bold font-mono">
+            <div class="flex justify-between"><span class="text-blue-400">PERFECT</span><span id="res-perfect">0</span></div>
+            <div class="flex justify-between"><span class="text-green-400">GREAT</span><span id="res-great">0</span></div>
+            <div class="flex justify-between"><span class="text-yellow-400">GOOD</span><span id="res-good">0</span></div>
+            <div class="flex justify-between"><span class="text-red-500">MISS</span><span id="res-miss">0</span></div>
+            <div class="h-px bg-gray-700 my-2"></div>
+            <div class="flex justify-between"><span class="text-gray-400">MAX COMBO</span><span id="res-maxcombo">0</span></div>
+            <div class="flex justify-between text-2xl"><span class="text-white">SCORE</span><span id="res-score" class="text-blue-400">0</span></div>
+        </div>
+        <button onclick="showUI('song-select-ui')" class="mt-8 px-12 py-4 bg-gray-800 hover:bg-gray-700 rounded-xl font-bold text-xl transition-colors border border-gray-600">
+            목록으로
+        </button>
+    </div>
+
+    <div id="toast-msg" class="absolute top-10 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-8 py-4 rounded-full shadow-2xl z-50 transition-all duration-300 opacity-0 pointer-events-none font-bold text-lg translate-y-[-20px]">
+        알림 메시지
+    </div>
+
+    <div id="youtube-background" class="hidden" aria-hidden="true"></div>
+    <canvas id="game-canvas"></canvas>
+
+    <script>window.APP_MODE = 'play';</script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script type="module" src="./js/game.js"></script>
+</body>
+</html>

@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3K Mania Prototype v2 - Real Server Ver.</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; overflow: hidden; background-color: #111; color: white; }
+        canvas { display: block; width: 100%; height: 100%; }
+        
+        @keyframes pop {
+            0% { transform: scale(0.8); opacity: 0; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); opacity: 0; }
+        }
+        .judge-text { animation: pop 0.4s ease-out forwards; }
+        
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1f2937; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+    </style>
+</head>
+<body class="relative w-screen h-screen select-none">
+
+    <!-- 1. 메인 메뉴 UI -->
+    <div id="menu-ui" class="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-30 backdrop-blur-sm">
+        <h1 class="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 mb-2">3K RHYTHM</h1>
+        <p class="text-gray-400 mb-12">Java/Unity 이식을 위한 웹 프로토타입 - Server 연동</p>
+
+        <div class="flex flex-col gap-4 w-80">
+            <button onclick="showUI('song-select-ui')" class="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 rounded-xl font-bold text-xl shadow-lg transition-transform active:scale-95">
+                곡 선택 / 플레이
+            </button>
+            <button onclick="showUI('settings-ui')" class="w-full py-4 bg-gray-800 hover:bg-gray-700 rounded-xl font-bold text-xl shadow-lg transition-transform active:scale-95 border border-gray-600">
+                설정 (조작키/속도)
+            </button>
+        </div>
+    </div>
+
+    <!-- 2. 설정 UI (조작키 커스텀) -->
+    <div id="settings-ui" class="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-40 hidden backdrop-blur-md">
+        <h2 class="text-4xl font-black mb-8">SETTINGS</h2>
+        <div class="bg-gray-900 p-8 rounded-2xl border border-gray-700 w-96 flex flex-col gap-6">
+            
+            <div>
+                <label class="font-bold text-gray-300 mb-2 block">조작키 설정 (클릭 후 변경)</label>
+                <div class="flex justify-between gap-2">
+                    <button id="key-btn-0" onclick="startKeyBind(0)" class="flex-1 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-black text-xl border-b-4 border-gray-900 text-white uppercase transition-colors">D</button>
+                    <button id="key-btn-1" onclick="startKeyBind(1)" class="flex-1 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-black text-xl border-b-4 border-gray-900 text-white uppercase transition-colors">F</button>
+                    <button id="key-btn-2" onclick="startKeyBind(2)" class="flex-1 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-black text-xl border-b-4 border-gray-900 text-white uppercase transition-colors">J</button>
+                </div>
+                <p id="keybind-msg" class="text-xs text-yellow-400 mt-2 h-4 text-center opacity-0 transition-opacity">변경할 키를 키보드에서 누르세요.</p>
+            </div>
+
+            <div>
+                <div class="flex justify-between mb-2"><label class="font-bold text-gray-300">스크롤 속도</label><span id="speed-val" class="text-blue-400 font-bold">1.5x</span></div>
+                <input type="range" id="speed-slider" min="0.5" max="3.0" step="0.1" value="1.5" class="w-full accent-blue-500">
+            </div>
+            <div>
+                <div class="flex justify-between mb-2"><label class="font-bold text-gray-300">판정 오프셋 (ms)</label><span id="offset-val" class="text-purple-400 font-bold">0ms</span></div>
+                <input type="range" id="offset-slider" min="-200" max="200" step="10" value="0" class="w-full accent-purple-500">
+            </div>
+
+            <button onclick="showUI('menu-ui')" class="mt-4 w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-lg">완료</button>
+        </div>
+    </div>
+
+    <!-- 3. 곡 선택 창 (Song Select) -->
+    <div id="song-select-ui" class="absolute inset-0 flex flex-col items-center pt-24 bg-black/90 z-30 hidden backdrop-blur-md">
+        <h2 class="text-4xl font-black mb-8 text-white">SELECT MAP</h2>
+        
+        <div class="w-full max-w-2xl flex gap-6">
+            <!-- 곡 목록 -->
+            <div id="song-list" class="flex-1 flex flex-col gap-3 h-96 overflow-y-auto pr-2">
+                <!-- JS에서 동적 생성됨 -->
+            </div>
+            
+            <!-- 선택된 곡 정보 및 액션 -->
+            <div class="w-64 bg-gray-900 border border-gray-700 rounded-xl p-6 flex flex-col gap-4">
+                <div>
+                    <h3 id="info-title" class="text-xl font-bold text-white truncate">곡 제목</h3>
+                    <p id="info-artist" class="text-sm text-gray-400 truncate">아티스트</p>
+                    <div class="mt-4 text-sm text-gray-300">
+                        <p>노트 수: <span id="info-notes" class="text-blue-400 font-bold">0</span></p>
+                        <p>상태: <span id="info-upload" class="text-yellow-400 font-bold">미등록</span></p>
+                    </div>
+                </div>
+                
+                <div class="flex flex-col gap-2 mt-auto">
+                    <button onclick="startGame('PLAY')" class="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold">▶ 플레이</button>
+                    <button onclick="startGame('RECORD')" class="w-full py-3 bg-red-600 hover:bg-red-500 rounded-lg font-bold">● 패턴 녹화</button>
+                    <button onclick="uploadMap()" class="w-full py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-bold">↑ 서버 업로드</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex gap-4 mt-8">
+            <button onclick="loadMapsFromServer()" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold border border-indigo-400">🔄 서버에서 최신 목록 불러오기</button>
+            <button onclick="showUI('menu-ui')" class="px-8 py-3 bg-gray-800 hover:bg-gray-700 rounded-xl font-bold border border-gray-600">뒤로가기</button>
+        </div>
+    </div>
+
+    <!-- 4. 서버 통신 상태 모달 -->
+    <div id="upload-ui" class="absolute inset-0 flex items-center justify-center bg-black/95 z-50 hidden">
+        <div class="text-center w-80">
+            <h3 class="text-2xl font-black text-white mb-4">서버 통신 중...</h3>
+            <div class="w-full bg-gray-800 rounded-full h-4 mb-4 overflow-hidden border border-gray-700">
+                <div class="bg-purple-500 h-4 rounded-full animate-pulse" style="width: 100%"></div>
+            </div>
+            <p id="upload-text" class="text-gray-400 text-sm">데이터를 주고받고 있습니다.</p>
+        </div>
+    </div>
+
+    <!-- 5. 인게임 HUD -->
+    <div id="game-ui" class="absolute inset-0 pointer-events-none hidden z-10 flex flex-col items-center justify-between py-12">
+        
+        <div id="play-hud" class="flex w-full px-12 justify-between items-start w-full hidden">
+            <div>
+                <p class="text-gray-400 font-bold text-sm">SCORE</p>
+                <p id="score-text" class="text-4xl font-black font-mono">0000000</p>
+            </div>
+            <div class="text-right">
+                <p class="text-gray-400 font-bold text-sm">ACCURACY</p>
+                <p id="acc-text" class="text-4xl font-black font-mono">100.00%</p>
+            </div>
+        </div>
+        
+        <div id="record-hud" class="flex w-full px-12 justify-center hidden">
+            <div class="text-center bg-red-600/20 border border-red-500 px-8 py-4 rounded-full backdrop-blur-sm shadow-[0_0_15px_rgba(239,68,68,0.5)]">
+                <p class="text-red-400 font-black text-2xl animate-pulse">● RECORDING MODE</p>
+                <p class="text-white text-sm mt-1">음악에 맞춰 키보드를 눌러 노트를 배치하세요.</p>
+            </div>
+        </div>
+
+        <div class="text-center mt-32">
+            <p id="combo-text" class="text-6xl font-black font-mono text-white opacity-0 transition-opacity">0</p>
+            <p id="combo-label" class="text-xl font-bold text-gray-400 opacity-0 transition-opacity">COMBO</p>
+        </div>
+
+        <div id="judge-display" class="absolute top-2/3 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-5xl font-black text-center w-full hidden">
+            PERFECT
+        </div>
+
+        <div id="record-controls" class="absolute top-8 right-8 hidden pointer-events-auto">
+            <button onclick="stopRecording()" class="px-6 py-3 bg-red-600 hover:bg-red-500 rounded-lg font-bold shadow-lg">
+                ■ 녹화 종료 및 저장
+            </button>
+        </div>
+    </div>
+
+    <!-- 6. 결과 화면 -->
+    <div id="result-ui" class="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-30 hidden backdrop-blur-md">
+        <h2 class="text-5xl font-black mb-8 text-white">RESULT</h2>
+        <div class="bg-gray-900 p-8 rounded-2xl border border-gray-700 w-96 flex flex-col gap-4 text-xl font-bold font-mono">
+            <div class="flex justify-between"><span class="text-blue-400">PERFECT</span><span id="res-perfect">0</span></div>
+            <div class="flex justify-between"><span class="text-green-400">GREAT</span><span id="res-great">0</span></div>
+            <div class="flex justify-between"><span class="text-yellow-400">GOOD</span><span id="res-good">0</span></div>
+            <div class="flex justify-between"><span class="text-red-500">MISS</span><span id="res-miss">0</span></div>
+            <div class="h-px bg-gray-700 my-2"></div>
+            <div class="flex justify-between"><span class="text-gray-400">MAX COMBO</span><span id="res-maxcombo">0</span></div>
+            <div class="flex justify-between text-2xl"><span class="text-white">SCORE</span><span id="res-score" class="text-blue-400">0</span></div>
+        </div>
+        <button onclick="showUI('song-select-ui')" class="mt-8 px-12 py-4 bg-gray-800 hover:bg-gray-700 rounded-xl font-bold text-xl transition-colors border border-gray-600">
+            목록으로
+        </button>
+    </div>
+
+    <!-- 렌더링 캔버스 -->
+    <canvas id="game-canvas"></canvas>
+
+    <script>
+        const SERVER_URL = 'http://localhost:3000/api/maps'; // 백엔드 서버 주소
+
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        
+        let GAME_SPEED = 1.5;
+        let GLOBAL_OFFSET = 0;
+        let KEYS = ['d', 'f', 'j']; 
+        let bindingIndex = -1;
+        
+        const LANE_WIDTH = 100;
+        const TOTAL_WIDTH = LANE_WIDTH * 3;
+        const NOTE_HEIGHT = 20;
+        let JUDGE_Y = 0;
+
+        let gameState = 'MENU'; 
+        let audioCtx = null;
+        let audioStartTime = 0;
+        
+        let stats = { score: 0, combo: 0, maxCombo: 0, perfect: 0, great: 0, good: 0, miss: 0 };
+        const keyState = [false, false, false];
+        let visualEffects = []; 
+
+        class Note {
+            constructor(data) {
+                this.time = data.time;
+                this.lane = data.lane;
+                this.isHit = false;
+                this.isMissed = false;
+            }
+        }
+
+        // 기본 제공 맵은 일단 놔두고, 서버에서 받아오면 덮어쓸 예정
+        let beatmapList = [
+            { id: "map_custom", title: "나만의 커스텀 맵", artist: "Player", uploaded: false, notes: [] }
+        ];
+        
+        let currentMapIndex = 0;
+        let activeNotes = [];
+        let recordedNotes = [];
+
+        // --- ★ [핵심] 서버 연동 (API Fetch) 함수들 ★ ---
+
+        // 1. 서버에서 곡 목록 불러오기
+        async function loadMapsFromServer() {
+            showUI('upload-ui');
+            document.getElementById('upload-text').innerText = "서버에서 맵을 불러오는 중...";
+            
+            try {
+                // 서버에 GET 요청을 보냄
+                const response = await fetch(SERVER_URL);
+                if (!response.ok) throw new Error('서버 응답 오류');
+                
+                const serverMaps = await response.json();
+                
+                // 로컬의 커스텀 맵 유지용 임시 저장
+                const localCustomMap = beatmapList.find(m => m.id === "map_custom");
+                
+                // 서버에서 가져온 리스트로 갈아끼우기 (로컬 맵을 맨 앞에 추가)
+                beatmapList = [localCustomMap, ...serverMaps];
+                
+                // 인덱스 초기화 및 리스트 다시 그리기
+                currentMapIndex = 0;
+                renderSongList();
+                
+                // UI 복구
+                showUI('song-select-ui');
+                alert(`서버에서 ${serverMaps.length}개의 맵을 성공적으로 불러왔습니다!`);
+                
+            } catch (error) {
+                console.error("맵 불러오기 실패:", error);
+                alert("서버에 연결할 수 없습니다. 서버가 켜져 있는지 확인해주세요.");
+                showUI('song-select-ui');
+            }
+        }
+
+        // 2. 서버로 커스텀 맵 업로드 하기
+        async function uploadMap() {
+            const map = beatmapList[currentMapIndex];
+            if (map.uploaded) return alert('이미 업로드 된 맵입니다!');
+            if (map.notes.length === 0) return alert('노트가 하나도 없습니다. 녹화를 먼저 진행하세요.');
+
+            // 제목을 사용자에게 입력받기
+            const newTitle = prompt("업로드할 맵의 제목을 입력하세요:", map.title);
+            if (!newTitle) return; // 취소 누르면 중단
+            
+            const newArtist = prompt("작곡가(또는 제작자) 이름을 입력하세요:", "Player");
+            if (!newArtist) return;
+
+            // 보낼 데이터 준비
+            const mapDataToUpload = {
+                title: newTitle,
+                artist: newArtist,
+                notes: map.notes
+            };
+
+            showUI('upload-ui');
+            document.getElementById('upload-text').innerText = "서버로 데이터를 전송하는 중...";
+            
+            try {
+                // 서버에 POST 요청으로 데이터 전송
+                const response = await fetch(SERVER_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json' // JSON 형태로 보낸다고 알려줌
+                    },
+                    body: JSON.stringify(mapDataToUpload) // 객체를 문자열로 변환
+                });
+
+                if (!response.ok) throw new Error('업로드 실패');
+                
+                const result = await response.json();
+                
+                // 업로드 성공 후 처리
+                map.notes = []; // 성공했으니 커스텀 맵 안의 노트 초기화 (선택사항)
+                alert(`${result.map.title} 맵 업로드 완료!\n이제 목록을 새로고침하여 서버에 저장된 맵을 플레이해 보세요.`);
+                
+                // 업로드 완료 후 목록 다시 불러오기
+                await loadMapsFromServer(); 
+                
+            } catch (error) {
+                console.error("업로드 에러:", error);
+                alert("업로드 중 오류가 발생했습니다. 서버 상태를 확인하세요.");
+                showUI('song-select-ui');
+            }
+        }
+
+        // ---------------------------------------------
+
+
+        function showUI(uiId) {
+            ['menu-ui', 'settings-ui', 'song-select-ui', 'game-ui', 'result-ui', 'upload-ui'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
+            document.getElementById(uiId).classList.remove('hidden');
+            
+            if(uiId === 'song-select-ui') renderSongList();
+        }
+
+        function startKeyBind(index) {
+            bindingIndex = index;
+            document.getElementById('keybind-msg').style.opacity = 1;
+            document.getElementById(`key-btn-${index}`).innerText = "?";
+            document.getElementById(`key-btn-${index}`).classList.add('animate-pulse', 'bg-blue-600');
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (bindingIndex !== -1) {
+                const key = e.key.toLowerCase();
+                KEYS[bindingIndex] = key;
+                const btn = document.getElementById(`key-btn-${bindingIndex}`);
+                btn.innerText = key.toUpperCase();
+                btn.classList.remove('animate-pulse', 'bg-blue-600');
+                bindingIndex = -1;
+                document.getElementById('keybind-msg').style.opacity = 0;
+                return;
+            }
+            if (gameState === 'PLAYING' || gameState === 'RECORDING') {
+                const key = e.key.toLowerCase();
+                const idx = KEYS.indexOf(key);
+                if (idx !== -1 && !keyState[idx]) processInput(idx);
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            const idx = KEYS.indexOf(key);
+            if (idx !== -1) releaseInput(idx);
+        });
+
+        document.getElementById('speed-slider').addEventListener('input', (e) => { GAME_SPEED = parseFloat(e.target.value); document.getElementById('speed-val').innerText = GAME_SPEED.toFixed(1) + "x"; });
+        document.getElementById('offset-slider').addEventListener('input', (e) => { GLOBAL_OFFSET = parseInt(e.target.value); document.getElementById('offset-val').innerText = GLOBAL_OFFSET + "ms"; });
+
+        function renderSongList() {
+            const listEl = document.getElementById('song-list');
+            listEl.innerHTML = '';
+            
+            beatmapList.forEach((map, idx) => {
+                const isSelected = (idx === currentMapIndex);
+                const bgClass = isSelected ? 'bg-blue-900 border-blue-500' : 'bg-gray-800 border-gray-700 hover:bg-gray-750';
+                
+                const btn = document.createElement('div');
+                btn.className = `p-4 rounded-xl border cursor-pointer transition-colors ${bgClass}`;
+                
+                // 서버 맵인지 로컬 맵인지 표시 태그
+                const tag = map.id === "map_custom" 
+                    ? `<span class="bg-gray-600 text-xs px-2 py-1 rounded ml-2">로컬 생성용</span>` 
+                    : `<span class="bg-green-600 text-xs px-2 py-1 rounded ml-2">서버</span>`;
+
+                btn.innerHTML = `<h4 class="font-bold text-lg text-white">${map.title} ${tag}</h4><p class="text-sm text-gray-400">${map.artist}</p>`;
+                btn.onclick = () => selectMap(idx);
+                listEl.appendChild(btn);
+            });
+            updateMapInfo();
+        }
+
+        function selectMap(idx) {
+            currentMapIndex = idx;
+            renderSongList();
+        }
+
+        function updateMapInfo() {
+            const map = beatmapList[currentMapIndex];
+            document.getElementById('info-title').innerText = map.title;
+            document.getElementById('info-artist').innerText = map.artist;
+            document.getElementById('info-notes').innerText = map.notes.length;
+            document.getElementById('info-upload').innerText = map.uploaded ? "서버 저장됨" : "로컬 파일 (미등록)";
+            document.getElementById('info-upload').className = map.uploaded ? "text-green-400 font-bold" : "text-yellow-400 font-bold";
+        }
+
+        function getCurrentTime() {
+            if(!audioCtx) return 0;
+            return (audioCtx.currentTime - audioStartTime) * 1000; 
+        }
+
+        function scheduleBeep(time) {
+            if(time < audioCtx.currentTime) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(440, time);
+            osc.frequency.exponentialRampToValueAtTime(40, time + 0.1);
+            gain.gain.setValueAtTime(0.3, time);
+            gain.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(time);
+            osc.stop(time + 0.1);
+        }
+
+        function processInput(laneIndex) {
+            keyState[laneIndex] = true;
+            const currentTime = getCurrentTime();
+
+            if (gameState === 'PLAYING') {
+                const judgeTime = currentTime - GLOBAL_OFFSET;
+                let targetNote = activeNotes.find(n => !n.isHit && !n.isMissed && n.lane === laneIndex);
+                if (targetNote) {
+                    const timeDiff = Math.abs(targetNote.time - judgeTime);
+                    if (timeDiff <= 120) {
+                        targetNote.isHit = true;
+                        if (timeDiff <= 30) judge("PERFECT");
+                        else if (timeDiff <= 70) judge("GREAT");
+                        else judge("GOOD");
+                        
+                        visualEffects.push({ lane: laneIndex, y: JUDGE_Y, time: Date.now(), type: 'hit' });
+                    }
+                }
+            } 
+            else if (gameState === 'RECORDING') {
+                recordedNotes.push({ time: currentTime, lane: laneIndex });
+                visualEffects.push({ lane: laneIndex, y: JUDGE_Y, time: Date.now(), type: 'record' });
+                
+                const osc = audioCtx.createOscillator();
+                osc.frequency.value = 600 + (laneIndex * 100);
+                osc.connect(audioCtx.destination);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.05);
+            }
+        }
+
+        function releaseInput(laneIndex) {
+            keyState[laneIndex] = false;
+        }
+
+        function judge(type) {
+            let pts = 0;
+            const judgeEl = document.getElementById('judge-display');
+            
+            if (type === "PERFECT") { pts = 300; stats.perfect++; judgeEl.className = "judge-text text-blue-400"; }
+            else if (type === "GREAT") { pts = 100; stats.great++; judgeEl.className = "judge-text text-green-400"; }
+            else if (type === "GOOD") { pts = 50; stats.good++; judgeEl.className = "judge-text text-yellow-400"; }
+            else if (type === "MISS") { pts = 0; stats.miss++; stats.combo = 0; judgeEl.className = "judge-text text-red-500"; }
+
+            if (type !== "MISS") {
+                stats.combo++;
+                if (stats.combo > stats.maxCombo) stats.maxCombo = stats.combo;
+                stats.score += pts + (stats.combo * 10);
+            }
+
+            document.getElementById('score-text').innerText = String(stats.score).padStart(7, '0');
+            const totalHits = stats.perfect + stats.great + stats.good + stats.miss;
+            const currentAcc = totalHits === 0 ? 100 : ((stats.perfect*300 + stats.great*100 + stats.good*50) / (totalHits*300)) * 100;
+            document.getElementById('acc-text').innerText = currentAcc.toFixed(2) + "%";
+
+            const comboEl = document.getElementById('combo-text');
+            const labelEl = document.getElementById('combo-label');
+            if (stats.combo > 3) {
+                comboEl.innerText = stats.combo;
+                comboEl.style.opacity = 1; labelEl.style.opacity = 1;
+            } else {
+                comboEl.style.opacity = 0; labelEl.style.opacity = 0;
+            }
+
+            judgeEl.innerText = type;
+            judgeEl.style.display = 'block';
+            judgeEl.style.animation = 'none';
+            judgeEl.offsetHeight; 
+            judgeEl.style.animation = null;
+        }
+
+        function startGame(mode) {
+            const map = beatmapList[currentMapIndex];
+            
+            showUI('game-ui');
+            document.getElementById('play-hud').classList.add('hidden');
+            document.getElementById('record-hud').classList.add('hidden');
+            document.getElementById('record-controls').classList.add('hidden');
+            
+            if(audioCtx) audioCtx.close();
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            audioStartTime = audioCtx.currentTime;
+            visualEffects = [];
+
+            if (mode === 'PLAY') {
+                if (map.notes.length === 0) { alert('노트가 없는 맵입니다!'); return showUI('song-select-ui'); }
+                
+                gameState = 'PLAYING';
+                document.getElementById('play-hud').classList.remove('hidden');
+                
+                activeNotes = map.notes.map(n => new Note(n)).sort((a, b) => a.time - b.time);
+                
+                stats = { score: 0, combo: 0, maxCombo: 0, perfect: 0, great: 0, good: 0, miss: 0 };
+                document.getElementById('score-text').innerText = "0000000";
+                document.getElementById('acc-text').innerText = "100.00%";
+                document.getElementById('judge-display').style.display = 'none';
+                document.getElementById('combo-text').style.opacity = 0;
+                document.getElementById('combo-label').style.opacity = 0;
+
+                activeNotes.forEach(note => {
+                    scheduleBeep(audioCtx.currentTime + (note.time / 1000) + (GLOBAL_OFFSET / 1000));
+                });
+            } 
+            else if (mode === 'RECORD') {
+                gameState = 'RECORDING';
+                document.getElementById('record-hud').classList.remove('hidden');
+                document.getElementById('record-controls').classList.remove('hidden');
+                recordedNotes = []; 
+            }
+
+            requestAnimationFrame(drawGame);
+        }
+
+        function stopRecording() {
+            gameState = 'MENU';
+            if(audioCtx) { audioCtx.close(); audioCtx = null; }
+            
+            if(recordedNotes.length > 0) {
+                beatmapList[currentMapIndex].notes = [...recordedNotes];
+                beatmapList[currentMapIndex].uploaded = false; 
+                alert(`총 ${recordedNotes.length}개의 노트가 기록 및 저장되었습니다.`);
+            } else {
+                alert("기록된 노트가 없습니다.");
+            }
+            showUI('song-select-ui');
+        }
+
+        function drawGame() {
+            if (gameState !== 'PLAYING' && gameState !== 'RECORDING') return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const currentTime = getCurrentTime();
+            const judgeTime = currentTime - GLOBAL_OFFSET;
+            const startX = (canvas.width - TOTAL_WIDTH) / 2;
+
+            ctx.fillStyle = 'rgba(20, 20, 25, 0.8)';
+            ctx.fillRect(startX, 0, TOTAL_WIDTH, canvas.height);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)'; ctx.lineWidth = 2;
+            for(let i=1; i<3; i++) { ctx.beginPath(); ctx.moveTo(startX + (LANE_WIDTH * i), 0); ctx.lineTo(startX + (LANE_WIDTH * i), canvas.height); ctx.stroke(); }
+
+            for(let i=0; i<3; i++) {
+                if (keyState[i]) {
+                    const grad = ctx.createLinearGradient(0, JUDGE_Y, 0, JUDGE_Y - 300);
+                    grad.addColorStop(0, gameState==='RECORDING' ? 'rgba(255, 100, 100, 0.4)' : 'rgba(100, 200, 255, 0.4)');
+                    grad.addColorStop(1, 'rgba(0,0,0,0)');
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(startX + (i * LANE_WIDTH), 0, LANE_WIDTH, JUDGE_Y);
+                }
+                ctx.strokeStyle = keyState[i] ? 'white' : 'gray';
+                ctx.lineWidth = 4;
+                ctx.strokeRect(startX + (i * LANE_WIDTH), JUDGE_Y - (NOTE_HEIGHT/2), LANE_WIDTH, NOTE_HEIGHT);
+                
+                ctx.fillStyle = 'gray';
+                ctx.font = '20px Inter';
+                ctx.textAlign = 'center';
+                ctx.fillText(KEYS[i].toUpperCase(), startX + (i * LANE_WIDTH) + (LANE_WIDTH/2), JUDGE_Y + 50);
+            }
+
+            ctx.strokeStyle = gameState==='RECORDING' ? 'rgba(255, 100, 100, 0.5)' : 'rgba(255, 255, 255, 0.5)';
+            ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(startX, JUDGE_Y); ctx.lineTo(startX + TOTAL_WIDTH, JUDGE_Y); ctx.stroke();
+
+            const now = Date.now();
+            visualEffects = visualEffects.filter(ef => now - ef.time < 300);
+            visualEffects.forEach(ef => {
+                const progress = (now - ef.time) / 300;
+                ctx.fillStyle = ef.type === 'record' ? `rgba(255, 50, 50, ${1 - progress})` : `rgba(50, 200, 255, ${1 - progress})`;
+                ctx.fillRect(startX + (ef.lane * LANE_WIDTH), ef.y - 10 - (progress * 20), LANE_WIDTH, 20 + (progress * 40));
+            });
+
+            if (gameState === 'PLAYING') {
+                let remainingNotes = 0;
+                ctx.fillStyle = '#4facfe'; ctx.shadowBlur = 10; ctx.shadowColor = '#00f2fe';
+
+                for (let i = 0; i < activeNotes.length; i++) {
+                    let note = activeNotes[i];
+                    if (!note.isHit && !note.isMissed && (judgeTime - note.time) > 120) {
+                        note.isMissed = true; judge("MISS");
+                    }
+                    if (note.isHit || note.isMissed) continue;
+                    
+                    remainingNotes++;
+                    const noteY = JUDGE_Y - ((note.time - judgeTime) * GAME_SPEED);
+                    if (noteY > canvas.height + 50 || noteY < -50) continue;
+
+                    ctx.beginPath();
+                    ctx.roundRect(startX + (note.lane * LANE_WIDTH) + 2, noteY - (NOTE_HEIGHT/2), LANE_WIDTH - 4, NOTE_HEIGHT, 5);
+                    ctx.fill();
+                }
+                ctx.shadowBlur = 0;
+
+                if (remainingNotes === 0 && (judgeTime > activeNotes[activeNotes.length-1].time + 1000)) {
+                    gameState = 'RESULT';
+                    if(audioCtx) { audioCtx.close(); audioCtx = null; }
+                    showUI('result-ui');
+                    document.getElementById('res-perfect').innerText = stats.perfect;
+                    document.getElementById('res-great').innerText = stats.great;
+                    document.getElementById('res-good').innerText = stats.good;
+                    document.getElementById('res-miss').innerText = stats.miss;
+                    document.getElementById('res-maxcombo').innerText = stats.maxCombo;
+                    document.getElementById('res-score').innerText = stats.score;
+                }
+            } 
+            else if (gameState === 'RECORDING') {
+                ctx.fillStyle = '#ff6b6b'; ctx.shadowBlur = 10; ctx.shadowColor = '#ff6b6b';
+                
+                for (let i = Math.max(0, recordedNotes.length - 20); i < recordedNotes.length; i++) {
+                    let note = recordedNotes[i];
+                    const noteY = JUDGE_Y - ((currentTime - note.time) * GAME_SPEED * 0.5); 
+                    if (noteY < -50) continue;
+
+                    ctx.beginPath();
+                    ctx.roundRect(startX + (note.lane * LANE_WIDTH) + 2, noteY - (NOTE_HEIGHT/2), LANE_WIDTH - 4, NOTE_HEIGHT, 5);
+                    ctx.fill();
+                }
+                ctx.shadowBlur = 0;
+            }
+
+            requestAnimationFrame(drawGame);
+        }
+
+        function resize() {
+            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+            JUDGE_Y = canvas.height * 0.8;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // 게임 켰을 때 자동으로 서버 맵 한번 불러오기 시도
+        // (단, 사용자 인터랙션 전이므로 실패해도 알림 띄우지 않고 조용히 처리할 수도 있지만
+        // 여기선 명시적인 버튼을 사용하도록 놔둠)
+    </script>
+</body>
+</html>

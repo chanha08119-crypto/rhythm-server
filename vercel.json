@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "play.html", "use": "@vercel/static" },
+    { "src": "editor.html", "use": "@vercel/static" },
+    { "src": "js/*.js", "use": "@vercel/static" },
+    { "src": "css/*.css", "use": "@vercel/static" }
+  ],
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/play.html"
+    }
+  ]
+}

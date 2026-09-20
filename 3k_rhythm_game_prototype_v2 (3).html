@@ -1,0 +1,1606 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3K Mania Prototype v2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; overflow: hidden; background-color: #111; color: white; }
+        canvas { display: block; width: 100%; height: 100%; }
+        
+        @keyframes pop {
+            0% { transform: scale(0.8); opacity: 0; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); opacity: 0; }
+        }
+        .judge-text { animation: pop 0.4s ease-out forwards; }
+        
+        .file-upload-wrapper { position: relative; overflow: hidden; display: inline-block; }
+        .file-upload-wrapper input[type=file] { font-size: 100px; position: absolute; left: 0; top: 0; opacity: 0; cursor: pointer; }
+        
+        /* 스크롤바 커스텀 */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1f2937; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+    </style>
+</head>
+<body class="relative w-screen h-screen select-none">
+
+    <!-- 1. 메인 메뉴 UI -->
+    <div id="menu-ui" class="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-30 backdrop-blur-sm">
+        <!-- 유저 프로필 상단 바 -->
+        <div id="user-bar" class="absolute top-6 right-6 flex items-center gap-3 bg-gray-900/90 border border-gray-700 px-4 py-2 rounded-full">
+            <span id="user-info-text" class="text-sm text-gray-300 font-bold cursor-pointer hover:text-blue-400 transition-colors" onclick="openProfileModal()">👤 게스트</span>
+            <button id="auth-btn" onclick="openAuthModal()" class="text-xs bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-full transition-colors">로그인 / 회원가입</button>
+        </div>
+
+        <h1 class="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 mb-2">3K RHYTHM</h1>
+        <p class="text-gray-400 mb-12">Java/Unity 이식을 위한 웹 프로토타입 v2</p>
+
+        <div class="flex flex-col gap-4 w-80">
+            <button onclick="showUI('song-select-ui')" class="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 rounded-xl font-bold text-xl shadow-lg transition-transform active:scale-95">
+                곡 선택 / 플레이
+            </button>
+            <button onclick="showUI('settings-ui')" class="w-full py-4 bg-gray-800 hover:bg-gray-700 rounded-xl font-bold text-xl shadow-lg transition-transform active:scale-95 border border-gray-600">
+                설정 (조작키/속도)
+            </button>
+        </div>
+    </div>
+
+    <!-- 1.5 유저 인증 모달 -->
+    <div id="auth-modal" class="absolute inset-0 flex items-center justify-center bg-black/90 z-50 hidden backdrop-blur-md">
+        <div class="bg-gray-900 border border-gray-700 rounded-2xl p-8 w-96 flex flex-col gap-5 shadow-2xl relative">
+            <button onclick="closeAuthModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white font-bold text-xl">✕</button>
+            <h3 class="text-2xl font-black text-white text-center">유저 로그인 / 회원가입</h3>
+            <p class="text-xs text-gray-400 text-center">로그인하면 작성한 패턴 맵을 관리(수정/삭제)할 수 있습니다.</p>
+
+            <div class="flex items-center gap-2 my-1">
+                <div class="h-px bg-gray-700 flex-1"></div>
+                <span class="text-xs text-gray-500 uppercase">또는 익명/이메일</span>
+                <div class="h-px bg-gray-700 flex-1"></div>
+            </div>
+
+            <!-- 이메일/닉네임 간편 로그인 -->
+            <div class="flex flex-col gap-3">
+                <input type="text" id="auth-nickname" placeholder="닉네임 입력 (간편 로그인)" class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
+                <input type="email" id="auth-email" placeholder="이메일 입력 (선택)" class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
+                <input type="password" id="auth-password" placeholder="비밀번호" class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
+                <div class="flex gap-2">
+                    <button onclick="loginWithNickname()" class="flex-1 py-2.5 bg-green-600 hover:bg-green-500 rounded-xl font-bold text-sm">⚡ 닉네임 로그인</button>
+                    <button onclick="loginWithEmail()" class="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-sm">로그인</button>
+                    <button onclick="signUpWithEmail()" class="flex-1 py-2.5 bg-gray-700 hover:bg-gray-600 rounded-xl font-bold text-sm">회원가입</button>
+                </div>
+            </div>
+            
+            <button onclick="loginAsGuest()" class="w-full py-2 bg-gray-800 hover:bg-gray-700 rounded-xl font-bold text-xs text-gray-400">게스트 모드로 계속 사용</button>
+        </div>
+    </div>
+
+    <!-- 1.6 사용자 프로필 모달 (고유 ID 표시) -->
+    <div id="profile-modal" class="absolute inset-0 flex items-center justify-center bg-black/90 z-50 hidden backdrop-blur-md">
+        <div class="bg-gray-900 border border-gray-700 rounded-2xl p-8 w-96 flex flex-col gap-5 shadow-2xl relative">
+            <button onclick="closeProfileModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white font-bold text-xl">✕</button>
+            <h3 class="text-2xl font-black text-white text-center">🎮 프로필</h3>
+            
+            <div class="bg-gray-800 rounded-xl p-4 flex flex-col gap-3">
+                <div>
+                    <p class="text-xs text-gray-500 uppercase">닉네임</p>
+                    <p id="profile-nickname" class="text-lg font-bold text-blue-400">로딩중...</p>
+                </div>
+                
+                <div class="border-t border-gray-700 pt-3">
+                    <p class="text-xs text-gray-500 uppercase">고유 계정 ID</p>
+                    <p id="profile-unique-id" class="text-sm font-mono text-green-400 break-all">로딩중...</p>
+                    <button onclick="copyUniqueId()" class="mt-2 w-full py-2 bg-green-600 hover:bg-green-500 rounded-lg font-bold text-xs text-white">📋 ID 복사</button>
+                </div>
+                
+                <div class="border-t border-gray-700 pt-3">
+                    <p class="text-xs text-gray-500 uppercase">활성 설정</p>
+                    <div class="text-xs text-gray-300 mt-1">
+                        <p>조작키: <span id="profile-keys" class="font-mono text-purple-400">로딩중...</span></p>
+                        <p>속도: <span id="profile-speed" class="font-mono text-purple-400">로딩중...</span></p>
+                        <p>오프셋: <span id="profile-offset" class="font-mono text-purple-400">로딩중...</span></p>
+                    </div>
+                </div>
+            </div>
+            
+            <button onclick="closeProfileModal()" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold text-sm">닫기</button>
+        </div>
+    </div>
+
+    <!-- 2. 설정 UI (조작키 커스텀) -->
+    <div id="settings-ui" class="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-40 hidden backdrop-blur-md">
+        <h2 class="text-4xl font-black mb-8">SETTINGS</h2>
+        <div class="bg-gray-900 p-8 rounded-2xl border border-gray-700 w-96 flex flex-col gap-6">
+            
+            <!-- 조작키 설정 -->
+            <div>
+                <label class="font-bold text-gray-300 mb-2 block">조작키 설정 (클릭 후 변경)</label>
+                <div class="flex justify-between gap-2">
+                    <button id="key-btn-0" onclick="startKeyBind(0)" class="flex-1 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-black text-xl border-b-4 border-gray-900 text-white uppercase transition-colors">D</button>
+                    <button id="key-btn-1" onclick="startKeyBind(1)" class="flex-1 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-black text-xl border-b-4 border-gray-900 text-white uppercase transition-colors">F</button>
+                    <button id="key-btn-2" onclick="startKeyBind(2)" class="flex-1 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-black text-xl border-b-4 border-gray-900 text-white uppercase transition-colors">J</button>
+                </div>
+                <p id="keybind-msg" class="text-xs text-yellow-400 mt-2 h-4 text-center opacity-0 transition-opacity">변경할 키를 키보드에서 누르세요.</p>
+            </div>
+
+            <!-- 스피드 / 오프셋 -->
+            <div>
+                <div class="flex justify-between mb-2"><label class="font-bold text-gray-300">스크롤 속도</label><span id="speed-val" class="text-blue-400 font-bold">1.5x</span></div>
+                <input type="range" id="speed-slider" min="0.5" max="3.0" step="0.1" value="1.5" class="w-full accent-blue-500">
+            </div>
+            <div>
+                <div class="flex justify-between mb-2"><label class="font-bold text-gray-300">판정 오프셋 (ms)</label><span id="offset-val" class="text-purple-400 font-bold">0ms</span></div>
+                <input type="range" id="offset-slider" min="-200" max="200" step="10" value="0" class="w-full accent-purple-500">
+            </div>
+
+            <button onclick="showUI('menu-ui')" class="mt-4 w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-lg">완료</button>
+        </div>
+    </div>
+
+    <!-- 3. 곡 선택 창 (Song Select) -->
+    <div id="song-select-ui" class="absolute inset-0 flex flex-col items-center pt-24 bg-black/90 z-30 hidden backdrop-blur-md">
+        <h2 class="text-4xl font-black mb-8 text-white">SELECT MAP</h2>
+        
+        <div class="w-full max-w-2xl flex gap-6">
+            <!-- 곡 목록 -->
+            <div id="song-list" class="flex-1 flex flex-col gap-3 h-96 overflow-y-auto pr-2">
+                <!-- JS에서 동적 생성됨 -->
+            </div>
+            
+            <!-- 선택된 곡 정보 및 액션 -->
+            <div class="w-64 bg-gray-900 border border-gray-700 rounded-xl p-6 flex flex-col gap-4">
+                <div>
+                    <h3 id="info-title" class="text-xl font-bold text-white truncate">곡 제목</h3>
+                    <p id="info-artist" class="text-sm text-gray-400 truncate hidden">아티스트</p>
+                    <div class="mt-4 text-sm text-gray-300">
+                        <p>노트 수: <span id="info-notes" class="text-blue-400 font-bold">0</span></p>
+                        <p>업로드 상태: <span id="info-upload" class="text-yellow-400 font-bold">미등록</span></p>
+                        <p class="text-xs text-gray-400 mt-1">작성자: <span id="info-creator" class="text-gray-200">System</span></p>
+                    </div>
+                </div>
+
+                <div class="file-upload-wrapper w-full">
+                    <button class="w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-bold text-sm border border-gray-500">🎵 MP3 파일 업로드</button>
+                    <input type="file" id="audio-upload" accept=".mp3, .wav, .ogg" onchange="handleAudioUpload(event)">
+                </div>
+                <p id="upload-status" class="text-xs text-green-400 hidden">오디오 로드 완료</p>
+                
+                <div class="flex flex-col gap-2 mt-auto">
+                    <button onclick="startGame('PLAY')" class="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold">▶ 플레이</button>
+                    <button onclick="startGame('RECORD')" class="w-full py-3 bg-red-600 hover:bg-red-500 rounded-lg font-bold">● 실시간 패턴 녹화</button>
+                    <button id="btn-upload" onclick="uploadMap()" class="w-full py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-bold">↑ 서버 업로드</button>
+                    
+                    <!-- 본인 작성 맵 전용 수정/삭제 버튼 -->
+                    <div id="owner-controls" class="flex gap-2 hidden pt-2 border-t border-gray-800">
+                        <button onclick="openEditMapModal()" class="flex-1 py-2 bg-amber-600 hover:bg-amber-500 rounded-lg font-bold text-xs">✏️ 정보 수정</button>
+                        <button onclick="deleteCurrentMap()" class="flex-1 py-2 bg-rose-600 hover:bg-rose-500 rounded-lg font-bold text-xs">🗑️ 맵 삭제</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <button onclick="showUI('menu-ui')" class="mt-8 px-8 py-3 bg-gray-800 hover:bg-gray-700 rounded-xl font-bold border border-gray-600">뒤로가기</button>
+    </div>
+
+    <!-- 3.5 맵 수정 모달 -->
+    <div id="edit-map-modal" class="absolute inset-0 flex items-center justify-center bg-black/90 z-50 hidden backdrop-blur-md">
+        <div class="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-80 flex flex-col gap-4">
+            <h3 class="text-xl font-black text-white">맵 정보 수정</h3>
+            <div>
+                <label class="text-xs text-gray-400 font-bold block mb-1">곡 제목</label>
+                <input type="text" id="edit-title" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-amber-500">
+            </div>
+            <div class="hidden">
+                <label class="text-xs text-gray-400 font-bold block mb-1">아티스트 명</label>
+                <input type="text" id="edit-artist" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-amber-500">
+            </div>
+            <div class="flex gap-2 mt-2">
+                <button onclick="saveEditMap()" class="flex-1 py-2.5 bg-amber-600 hover:bg-amber-500 rounded-lg font-bold text-sm">저장</button>
+                <button onclick="closeEditMapModal()" class="flex-1 py-2.5 bg-gray-700 hover:bg-gray-600 rounded-lg font-bold text-sm">취소</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 맵 업로드 전 이름/난이도 입력 모달 -->
+    <div id="upload-info-modal" class="absolute inset-0 flex items-center justify-center bg-black/90 z-50 hidden backdrop-blur-md">
+        <div class="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-96 flex flex-col gap-4">
+            <h3 class="text-2xl font-black text-white">🎵 맵 정보 입력</h3>
+            <p class="text-xs text-gray-400">업로드하기 전에 맵의 정보를 입력하세요.</p>
+            
+            <div>
+                <label class="text-xs text-gray-400 font-bold block mb-1">곡 제목 *</label>
+                <input type="text" id="upload-title" placeholder="예: Neon Dreams" class="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500" maxlength="50">
+                <p class="text-xs text-gray-500 mt-1">최대 50자</p>
+            </div>
+            
+            <div>
+                <label class="text-xs text-gray-400 font-bold block mb-1">난이도 (1~10)</label>
+                <div class="flex gap-2 items-center">
+                    <input type="range" id="upload-difficulty" min="1" max="10" value="5" class="flex-1">
+                    <div class="flex gap-1">
+                        <span id="difficulty-display" class="text-2xl font-black text-blue-400 w-8 text-center">5</span>
+                        <span class="text-xs text-gray-400">/ 10</span>
+                    </div>
+                </div>
+                <div class="text-xs text-gray-500 mt-1 flex justify-between">
+                    <span>🟢 쉬움</span>
+                    <span>🟡 보통</span>
+                    <span>🔴 어려움</span>
+                </div>
+            </div>
+            
+            <div class="flex gap-2 mt-4">
+                <button onclick="confirmUploadInfo()" class="flex-1 py-3 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold text-white">↑ 업로드 시작</button>
+                <button onclick="closeUploadInfoModal()" class="flex-1 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-bold text-white">취소</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. 서버 업로드 모달 (Mock) -->
+    <div id="upload-ui" class="absolute inset-0 flex items-center justify-center bg-black/95 z-50 hidden">
+        <div class="text-center w-80">
+            <h3 class="text-2xl font-black text-white mb-4">서버 업로드 중...</h3>
+            <div class="w-full bg-gray-800 rounded-full h-4 mb-4 overflow-hidden border border-gray-700">
+                <div id="upload-progress" class="bg-purple-500 h-4 rounded-full" style="width: 0%"></div>
+            </div>
+            <p id="upload-text" class="text-gray-400 text-sm">맵 데이터를 전송하고 있습니다.</p>
+        </div>
+    </div>
+
+    <!-- 5. 인게임 HUD (Play / Record) -->
+    <div id="game-ui" class="absolute inset-0 pointer-events-none hidden z-10 flex flex-col items-center justify-between py-12">
+        
+        <!-- 플레이 모드 HUD -->
+        <div id="play-hud" class="flex w-full px-12 justify-between items-start w-full hidden">
+            <div>
+                <p class="text-gray-400 font-bold text-sm">SCORE</p>
+                <p id="score-text" class="text-4xl font-black font-mono">0000000</p>
+            </div>
+            <div class="text-right">
+                <p class="text-gray-400 font-bold text-sm">ACCURACY</p>
+                <p id="acc-text" class="text-4xl font-black font-mono">100.00%</p>
+            </div>
+        </div>
+        
+        <!-- 레코딩 모드 HUD -->
+        <div id="record-hud" class="flex w-full px-12 justify-center hidden">
+            <div class="text-center bg-red-600/20 border border-red-500 px-8 py-4 rounded-full backdrop-blur-sm shadow-[0_0_15px_rgba(239,68,68,0.5)]">
+                <p class="text-red-400 font-black text-2xl animate-pulse">● RECORDING MODE</p>
+                <p class="text-white text-sm mt-1">음악에 맞춰 키보드를 눌러 노트를 배치하세요.</p>
+            </div>
+        </div>
+
+        <div class="text-center mt-32">
+            <p id="combo-text" class="text-6xl font-black font-mono text-white opacity-0 transition-opacity">0</p>
+            <p id="combo-label" class="text-xl font-bold text-gray-400 opacity-0 transition-opacity">COMBO</p>
+        </div>
+
+        <div id="judge-display" class="absolute top-2/3 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-5xl font-black text-center w-full hidden">
+            PERFECT
+        </div>
+
+        <!-- 녹화 종료 버튼 (레코딩 모드에서만 클릭 가능하도록 pointer-events 복구) -->
+        <div id="record-controls" class="absolute top-8 right-8 hidden pointer-events-auto">
+            <button onclick="stopRecording()" class="px-6 py-3 bg-red-600 hover:bg-red-500 rounded-lg font-bold shadow-lg">
+                ■ 녹화 종료 및 저장
+            </button>
+        </div>
+    </div>
+
+    <!-- 6. 결과 화면 -->
+    <div id="result-ui" class="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-30 hidden backdrop-blur-md">
+        <h2 class="text-5xl font-black mb-8 text-white">RESULT</h2>
+        <div class="bg-gray-900 p-8 rounded-2xl border border-gray-700 w-96 flex flex-col gap-4 text-xl font-bold font-mono">
+            <div class="flex justify-between"><span class="text-blue-400">PERFECT</span><span id="res-perfect">0</span></div>
+            <div class="flex justify-between"><span class="text-green-400">GREAT</span><span id="res-great">0</span></div>
+            <div class="flex justify-between"><span class="text-yellow-400">GOOD</span><span id="res-good">0</span></div>
+            <div class="flex justify-between"><span class="text-red-500">MISS</span><span id="res-miss">0</span></div>
+            <div class="h-px bg-gray-700 my-2"></div>
+            <div class="flex justify-between"><span class="text-gray-400">MAX COMBO</span><span id="res-maxcombo">0</span></div>
+            <div class="flex justify-between text-2xl"><span class="text-white">SCORE</span><span id="res-score" class="text-blue-400">0</span></div>
+        </div>
+        <button onclick="showUI('song-select-ui')" class="mt-8 px-12 py-4 bg-gray-800 hover:bg-gray-700 rounded-xl font-bold text-xl transition-colors border border-gray-600">
+            목록으로
+        </button>
+    </div>
+
+    <!-- 7. 토스트 메시지 UI (alert 대체) -->
+    <div id="toast-msg" class="absolute top-10 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-8 py-4 rounded-full shadow-2xl z-50 transition-all duration-300 opacity-0 pointer-events-none font-bold text-lg translate-y-[-20px]">
+        알림 메시지
+    </div>
+
+    <!-- 렌더링 캔버스 -->
+    <canvas id="game-canvas"></canvas>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+        // 고객님이 이전에 제공해주신 Supabase 설정
+        const supabaseUrl = 'https://whthandejodmoiqtgbdk.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndodGhhbmRlam9kbW9pcXRnYmRrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc5MTg2NDYsImV4cCI6MjEwMzQ5NDY0Nn0.QiiFnfEQuXP7o5VfHZtvE_WQdc3H_-JmkPHDyBBB2yA';
+        const supabase = createClient(supabaseUrl, supabaseKey);
+
+        let currentUser = null;
+        let settingsSaveTimeout = null;
+
+        // [Supabase] 사용자 프로필 생성/로드 (이메일 또는 닉네임 기반)
+        async function createOrGetUserProfile(email = null) {
+            if (!currentUser) return;
+            
+            try {
+                let data = null;
+                let searchBy = 'nickname';
+                
+                // 1. 이메일이 있으면 이메일로 먼저 찾기
+                if (email && email.trim()) {
+                    const { data: emailData } = await supabase
+                        .from('user_profiles')
+                        .select('*')
+                        .eq('email', email.toLowerCase())
+                        .single();
+                    
+                    if (emailData) {
+                        data = emailData;
+                        searchBy = 'email';
+                        currentUser.uid = emailData.user_id; // user_id 업데이트
+                        currentUser.email = email;
+                    }
+                }
+                
+                // 2. 이메일로 못찾았으면 user_id(닉네임)로 찾기
+                if (!data && currentUser.uid) {
+                    const { data: uidData } = await supabase
+                        .from('user_profiles')
+                        .select('*')
+                        .eq('user_id', currentUser.uid)
+                        .single();
+                    
+                    if (uidData) {
+                        data = uidData;
+                        searchBy = 'user_id';
+                    }
+                }
+                
+                // 3. 기존 프로필이 없으면 새로 생성
+                if (!data) {
+                    console.log("✨ 새 계정 생성 - user_id:", currentUser.uid);
+                    const uniqueId = currentUser.uid + '_' + Math.random().toString(36).substring(2, 10).toUpperCase();
+                    
+                    const { data: newProfile, error: createError } = await supabase
+                        .from('user_profiles')
+                        .insert([{
+                            user_id: currentUser.uid,
+                            unique_id: uniqueId,
+                            nickname: currentUser.customNickname || currentUser.uid,
+                            email: email && email.trim() ? email.toLowerCase() : null,
+                            created_at: new Date().toISOString()
+                        }])
+                        .select()
+                        .single();
+                    
+                    if (createError) throw createError;
+                    currentUser.uniqueId = newProfile.unique_id;
+                    console.log("✅ 새 계정 생성 완료 - ID:", currentUser.uniqueId);
+                } else {
+                    // 기존 프로필 로드 (닉네임 업데이트)
+                    console.log("📌 기존 계정 로드 (찾은 방식:", searchBy + ")");
+                    currentUser.uniqueId = data.unique_id;
+                    
+                    // 이메일이 있고 프로필에 없으면 추가
+                    if (email && email.trim() && !data.email) {
+                        await supabase
+                            .from('user_profiles')
+                            .update({ email: email.toLowerCase() })
+                            .eq('user_id', currentUser.uid);
+                        console.log("✅ 이메일 추가됨:", email);
+                    }
+                    
+                    // 닉네임이 다르면 업데이트
+                    if (currentUser.customNickname && currentUser.customNickname !== data.nickname) {
+                        await supabase
+                            .from('user_profiles')
+                            .update({ nickname: currentUser.customNickname })
+                            .eq('user_id', currentUser.uid);
+                        console.log("✅ 닉네임 업데이트됨:", currentUser.customNickname);
+                    }
+                }
+                
+                window.currentUser = currentUser;
+                console.log("👤 사용자 프로필 로드 - ID:", currentUser.uniqueId, "닉네임:", currentUser.customNickname, "이메일:", currentUser.email || "없음");
+            } catch(e) {
+                console.warn("❌ 사용자 프로필 생성 실패:", e.message);
+                // 폴백: 클라이언트에서 임시 ID 생성
+                currentUser.uniqueId = currentUser.uid + '_' + Math.random().toString(36).substring(2, 10).toUpperCase();
+            }
+        }
+        window.createOrGetUserProfile = createOrGetUserProfile;
+
+        // [Supabase] 사용자 설정 로드
+        async function loadUserSettings() {
+            if (!currentUser || !currentUser.uid) return;
+            
+            try {
+                const { data, error } = await supabase
+                    .from('user_settings')
+                    .select('*')
+                    .eq('user_id', currentUser.uid)
+                    .single();
+                
+                if (data && !error) {
+                    if (data.keys) KEYS = JSON.parse(data.keys);
+                    if (data.game_speed) GAME_SPEED = data.game_speed;
+                    if (data.global_offset !== null) GLOBAL_OFFSET = data.global_offset;
+                }
+                
+                // UI 업데이트 (요소 존재 확인)
+                updateSettingsUI();
+            } catch(e) {
+                console.warn("사용자 설정 로드 실패:", e.message);
+            }
+        }
+        window.loadUserSettings = loadUserSettings;
+        
+        // [Supabase] 사용자 설정 저장
+        async function saveUserSettings() {
+            if (!currentUser || !currentUser.uid) return;
+            
+            // 로컬 스토리지에도 저장 (오프라인 사용 시에도 유지)
+            try {
+                localStorage.setItem('rhythm_settings', JSON.stringify({
+                    keys: KEYS,
+                    game_speed: GAME_SPEED,
+                    global_offset: GLOBAL_OFFSET
+                }));
+            } catch(e) {}
+            
+            try {
+                const { error } = await supabase
+                    .from('user_settings')
+                    .upsert({
+                        user_id: currentUser.uid,
+                        keys: JSON.stringify(KEYS),
+                        game_speed: GAME_SPEED,
+                        global_offset: GLOBAL_OFFSET
+                    }, { onConflict: 'user_id' });
+                
+                if (error) throw error;
+                console.log("설정이 저장되었습니다.");
+            } catch(e) {
+                console.warn("설정 저장 실패:", e.message);
+            }
+        }
+        window.saveUserSettings = saveUserSettings;
+        
+        // 설정 저장 debounce (1초 후 저장)
+        function scheduleSettingsSave() {
+            if (settingsSaveTimeout) clearTimeout(settingsSaveTimeout);
+            settingsSaveTimeout = setTimeout(() => {
+                saveUserSettings();
+            }, 1000);
+        }
+        window.scheduleSettingsSave = scheduleSettingsSave;
+
+        async function initAuth() {
+            // 1. 로컬 스토리지에서 설정 로드 (오프라인 사용)
+            try {
+                const savedSettings = localStorage.getItem('rhythm_settings');
+                if (savedSettings) {
+                    const settings = JSON.parse(savedSettings);
+                    if (settings.keys) KEYS = settings.keys;
+                    if (settings.game_speed) GAME_SPEED = settings.game_speed;
+                    if (settings.global_offset !== null) GLOBAL_OFFSET = settings.global_offset;
+                }
+            } catch(e) {}
+            
+            // 2. 로컬 닉네임 확인 및 프로필 로드
+            const savedCustomUser = localStorage.getItem('custom_rhythm_user');
+            if (savedCustomUser) {
+                try { 
+                    const nickname = JSON.parse(savedCustomUser).nickname;
+                    currentUser = { customNickname: nickname, uid: nickname }; 
+                    window.currentUser = currentUser;
+                    
+                    // 프로필 생성/로드 (고유 ID)
+                    await createOrGetUserProfile();
+                    
+                    // 서버 설정 로드
+                    await loadUserSettings();
+                } catch(e){}
+            }
+            window.updateUserUI();
+            loadMapsFromServer();
+
+            // 환경(Canvas) 제한으로 인한 WebSocket 오류 방지를 위해
+            // 실시간 동기화(Supabase Realtime) 대신 10초 주기의 폴링(Polling) 방식으로 우회합니다.
+            setInterval(() => {
+                loadMapsFromServer();
+            }, 10000);
+        }
+
+        window.updateUserUI = () => {
+            const infoText = document.getElementById('user-info-text');
+            const authBtn = document.getElementById('auth-btn');
+            if (!infoText || !authBtn) return;
+            
+            const customNickname = currentUser?.customNickname;
+            const uniqueId = currentUser?.uniqueId;
+
+            if (customNickname) {
+                // 로그인 상태: 닉네임 + 고유 ID 표시
+                infoText.innerHTML = `👤 <span class="block text-xs">${customNickname}</span><span class="text-xs text-gray-400 font-mono">${uniqueId || '로딩중...'}</span>`;
+                infoText.className = "text-sm text-gray-300 font-bold";
+                authBtn.innerText = "로그아웃";
+                authBtn.onclick = () => { 
+                    localStorage.removeItem('custom_rhythm_user');
+                    currentUser = null;
+                    window.currentUser = null;
+                    location.reload(); 
+                };
+            } else {
+                // 비로그인 상태
+                infoText.innerText = "👤 게스트";
+                infoText.className = "text-sm text-gray-300 font-bold";
+                authBtn.innerText = "로그인 / 닉네임 설정";
+                authBtn.onclick = () => window.openAuthModal();
+            }
+            if (window.updateMapInfo) window.updateMapInfo();
+        };
+
+        window.openAuthModal = () => document.getElementById('auth-modal').classList.remove('hidden');
+        window.closeAuthModal = () => document.getElementById('auth-modal').classList.add('hidden');
+
+        window.openProfileModal = () => {
+            if (!currentUser || !currentUser.uid) {
+                if (window.showToast) window.showToast("로그인 후 확인할 수 있습니다.", true);
+                return;
+            }
+            
+            // 프로필 정보 표시
+            document.getElementById('profile-nickname').innerText = currentUser.customNickname || '게스트';
+            document.getElementById('profile-unique-id').innerText = currentUser.uniqueId || '로딩중...';
+            document.getElementById('profile-keys').innerText = KEYS.join(' / ').toUpperCase();
+            document.getElementById('profile-speed').innerText = GAME_SPEED.toFixed(1) + 'x';
+            document.getElementById('profile-offset').innerText = GLOBAL_OFFSET + 'ms';
+            
+            document.getElementById('profile-modal').classList.remove('hidden');
+        };
+        window.openProfileModal = openProfileModal;
+        
+        window.closeProfileModal = () => document.getElementById('profile-modal').classList.add('hidden');
+        
+        window.copyUniqueId = () => {
+            const uniqueId = document.getElementById('profile-unique-id').innerText;
+            navigator.clipboard.writeText(uniqueId).then(() => {
+                if (window.showToast) window.showToast("ID가 복사되었습니다!");
+            }).catch(() => {
+                if (window.showToast) window.showToast("복사 실패", true);
+            });
+        };
+
+        // 닉네임 로그인
+        window.loginWithNickname = async () => {
+            const nickname = document.getElementById('auth-nickname').value.trim();
+            if (!nickname) {
+                if (window.showToast) window.showToast("닉네임을 입력해주세요.", true);
+                return;
+            }
+            
+            localStorage.setItem('custom_rhythm_user', JSON.stringify({ nickname }));
+            currentUser = { customNickname: nickname, uid: nickname }; 
+            window.currentUser = currentUser;
+            
+            // 1. 사용자 프로필 생성/로드 (고유 ID 부여 또는 재사용)
+            await createOrGetUserProfile(); // 이메일 없이 닉네임만으로
+            
+            // 2. 사용자 설정 로드
+            await loadUserSettings();
+            
+            window.updateUserUI();
+            window.closeAuthModal();
+            document.getElementById('auth-nickname').value = '';
+            document.getElementById('auth-email').value = '';
+            document.getElementById('auth-password').value = '';
+            if (window.showToast) window.showToast(`${nickname}님으로 시작합니다. (ID: ${currentUser.uniqueId})`);
+            loadMapsFromServer();
+        };
+        
+        // 이메일 로그인
+        window.loginWithEmail = async () => {
+            const email = document.getElementById('auth-email').value.trim();
+            const password = document.getElementById('auth-password').value.trim();
+            
+            if (!email) {
+                if (window.showToast) window.showToast("이메일을 입력해주세요.", true);
+                return;
+            }
+            
+            if (!password) {
+                if (window.showToast) window.showToast("비밀번호를 입력해주세요.", true);
+                return;
+            }
+            
+            try {
+                // 이메일로 기존 계정 찾기
+                const { data: existingUser } = await supabase
+                    .from('user_profiles')
+                    .select('*')
+                    .eq('email', email.toLowerCase())
+                    .single();
+                
+                if (existingUser) {
+                    // 기존 계정이면 로그인
+                    currentUser = { 
+                        customNickname: existingUser.nickname,
+                        uid: existingUser.user_id,
+                        email: email,
+                        uniqueId: existingUser.unique_id
+                    };
+                    console.log("✅ 기존 계정으로 로그인 - ID:", existingUser.unique_id);
+                } else {
+                    // 새 계정 생성 (이메일을 user_id로 사용)
+                    const emailPrefix = email.split('@')[0];
+                    currentUser = { 
+                        customNickname: emailPrefix,
+                        uid: email.toLowerCase(), // 이메일을 user_id로 사용
+                        email: email
+                    };
+                    console.log("✅ 새 계정 생성 - 이메일:", email);
+                }
+                
+                window.currentUser = currentUser;
+                
+                // 프로필 생성/로드
+                await createOrGetUserProfile(email);
+                
+                // 사용자 설정 로드
+                await loadUserSettings();
+                
+                window.updateUserUI();
+                window.closeAuthModal();
+                document.getElementById('auth-nickname').value = '';
+                document.getElementById('auth-email').value = '';
+                document.getElementById('auth-password').value = '';
+                if (window.showToast) window.showToast(`${currentUser.customNickname}님으로 로그인되었습니다. (ID: ${currentUser.uniqueId})`);
+                loadMapsFromServer();
+            } catch(e) {
+                console.warn("이메일 로그인 실패:", e.message);
+                if (window.showToast) window.showToast("로그인 실패: " + e.message, true);
+            }
+        };
+        
+        // 이메일 회원가입 (로그인과 동일한 로직)
+        window.signUpWithEmail = async () => {
+            await window.loginWithEmail();
+        };
+        
+        // 게스트 모드
+        window.loginAsGuest = () => {
+            currentUser = { 
+                customNickname: "게스트",
+                uid: "guest_" + Math.random().toString(36).substring(2, 8),
+                uniqueId: "guest_" + Math.random().toString(36).substring(2, 10)
+            };
+            window.currentUser = currentUser;
+            window.updateUserUI();
+            window.closeAuthModal();
+            if (window.showToast) window.showToast("게스트 모드로 시작합니다.");
+            loadMapsFromServer();
+        };
+
+        // [Supabase] 서버에서 맵 목록(및 오디오 링크) 가져오기
+        async function loadMapsFromServer() {
+            try {
+                const { data, error } = await supabase
+                    .from('rhythm_patterns')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+
+                if (error) throw error;
+
+                const serverMaps = data.map(item => ({
+                    id: item.id,
+                    user_id: item.user_id || "guest",
+                    creator_unique_id: item.creator_unique_id || null, // 맵 작성자의 고유 ID
+                    title: item.title || "Unknown",
+                    difficulty: item.difficulty || 5,  // 난이도 (1~10)
+                    creator: item.creator_name || "익명",
+                    uploaded: true,
+                    notes: typeof item.notes === 'string' ? JSON.parse(item.notes) : (item.notes || []),
+                    audioUrl: item.music || null // DB에 있는 컬럼은 music
+                }));
+
+                const localMaps = getLocalMaps();
+                const serverMapIds = new Set(serverMaps.map(m => m.id));
+                const combinedMaps = [...serverMaps, ...localMaps.filter(lm => !serverMapIds.has(lm.id))];
+
+                if (window.updateServerMaps) window.updateServerMaps(combinedMaps);
+            } catch(e) {
+                console.warn("서버 맵 로드 에러:", e.message);
+                if (window.updateServerMaps) window.updateServerMaps(getLocalMaps());
+            }
+        }
+        window.loadMapsFromServer = loadMapsFromServer;
+
+        // [Supabase] 맵(노트 + MP3 오디오) 업로드
+        window.uploadMapToServer = async (mapData, fileData, progressCallback) => {
+            if (!currentUser || !currentUser.uid) { 
+                progressCallback(100, "오류: 닉네임 설정이 필요합니다."); 
+                return false; 
+            }
+            
+            progressCallback(20, "데이터 준비 중...");
+            let audioUrl = mapData.audioUrl || null;
+            const uid = currentUser.uid;
+            console.log("맵 업로드 - 현재 uid:", uid);
+
+            // 1. 오디오 파일이 있으면 Supabase Storage 에 업로드
+            if (fileData) {
+                progressCallback(50, "오디오 파일 업로드 중... (용량에 따라 수십 초 소요)");
+                try {
+                    const fileExt = fileData.name.split('.').pop();
+                    const safeName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+                    
+                    // 'songs' 버킷에 파일 업로드
+                    const { data: uploadData, error: uploadError } = await supabase.storage
+                        .from('songs')
+                        .upload(safeName, fileData);
+
+                    if (uploadError) throw uploadError;
+
+                    // 업로드된 파일의 공용 URL 가져오기
+                    const { data: publicUrlData } = supabase.storage
+                        .from('songs')
+                        .getPublicUrl(safeName);
+                        
+                    audioUrl = publicUrlData.publicUrl;
+                } catch (error) {
+                    console.error("Audio upload failed:", error);
+                    progressCallback(100, "오디오 파일 업로드 실패: " + error.message);
+                    return false; // 오디오 업로드 실패 시 중단
+                }
+            }
+
+            // 2. 맵 데이터 DB에 저장
+            // creator_unique_id 유효성 검사
+            if (!currentUser.uniqueId) {
+                console.warn("ERROR: currentUser.uniqueId가 없습니다!", currentUser);
+                progressCallback(100, "오류: 로그인 정보가 부족합니다. 다시 로그인해주세요.");
+                return false;
+            }
+            
+            const insertData = {
+                title: mapData.title,
+                difficulty: mapData.difficulty || 5,  // 난이도 (1~10, 기본값 5)
+                notes: typeof mapData.notes === 'string' ? mapData.notes : JSON.stringify(mapData.notes),
+                music: audioUrl, // DB에 있는 컬럼은 music
+                user_id: uid,
+                creator_name: currentUser.customNickname || uid,
+                creator_unique_id: currentUser.uniqueId // 맵 작성자의 고유 ID 저장
+            };
+
+            try {
+                progressCallback(80, "서버 DB 등록 중...");
+                console.log("📤 저장 시도 1: 전체 필드", insertData);
+                
+                let { data, error } = await supabase
+                    .from('rhythm_patterns')
+                    .insert([insertData])
+                    .select();
+                
+                // 1차 실패: creator_unique_id 제거
+                if (error) {
+                    console.warn("❌ 1차 실패:", error.message);
+                    console.log("📤 저장 시도 2: creator_unique_id 제거");
+                    
+                    const fallback2 = {
+                        title: mapData.title,
+                        difficulty: mapData.difficulty || 5,
+                        notes: typeof mapData.notes === 'string' ? mapData.notes : JSON.stringify(mapData.notes),
+                        music: audioUrl,
+                        user_id: uid,
+                        creator_name: currentUser.customNickname || uid
+                    };
+                    
+                    const retry2 = await supabase.from('rhythm_patterns').insert([fallback2]).select();
+                    if (retry2.error) {
+                        console.warn("❌ 2차 실패:", retry2.error.message);
+                        console.log("📤 저장 시도 3: creator_name도 제거");
+                        
+                        const fallback3 = {
+                            title: mapData.title,
+                            difficulty: mapData.difficulty || 5,
+                            notes: typeof mapData.notes === 'string' ? mapData.notes : JSON.stringify(mapData.notes),
+                            music: audioUrl,
+                            user_id: uid
+                        };
+                        
+                        const retry3 = await supabase.from('rhythm_patterns').insert([fallback3]).select();
+                        if (retry3.error) {
+                            console.warn("❌ 3차 실패:", retry3.error.message);
+                            console.log("📤 저장 시도 4: user_id도 제거");
+                            
+                            const fallback4 = {
+                                title: mapData.title,
+                                difficulty: mapData.difficulty || 5,
+                                notes: typeof mapData.notes === 'string' ? mapData.notes : JSON.stringify(mapData.notes),
+                                music: audioUrl
+                            };
+                            
+                            const retry4 = await supabase.from('rhythm_patterns').insert([fallback4]).select();
+                            if (retry4.error) throw retry4.error;
+                            data = retry4.data;
+                        } else {
+                            data = retry3.data;
+                        }
+                    } else {
+                        data = retry2.data;
+                    }
+                }
+                
+                progressCallback(100, "서버 업로드 및 공유 완료!");
+                return true;
+            } catch (error) {
+                console.error("❌ DB 저장 완전 실패:", error);
+                progressCallback(100, "DB 저장 실패: " + error.message);
+                return false;
+            }
+        };
+
+        // [Supabase] 서버에서 맵 삭제
+        window.deleteMapFromServer = async (mapId) => {
+            deleteLocalMap(mapId);
+            try {
+                await supabase.from('rhythm_patterns').delete().eq('id', mapId);
+            } catch(e) { console.warn("삭제 에러:", e.message); }
+            return true;
+        };
+
+        // [Supabase] 서버에서 맵 정보(제목) 수정
+        window.updateMapInServer = async (mapId, updatedMeta) => {
+            const localMaps = getLocalMaps();
+            const target = localMaps.find(m => m.id === mapId);
+            if (target) {
+                target.title = updatedMeta.title;
+                target.artist = updatedMeta.artist; // 로컬에만 저장
+                saveLocalMap(target);
+            }
+            try {
+                // artist 컬럼이 없을 수 있으므로 title만 업데이트
+                let { error } = await supabase.from('rhythm_patterns').update({
+                    title: updatedMeta.title
+                }).eq('id', mapId);
+                
+                if (error) {
+                    console.warn("맵 정보 수정 실패:", error.message);
+                }
+            } catch(e) { console.warn("수정 에러:", e.message); }
+            return true;
+        };
+
+        // 로컬 스토리지 헬퍼 함수
+        function getLocalMaps() { try { return JSON.parse(localStorage.getItem('local_rhythm_maps') || '[]'); } catch(e) { return []; } }
+        function saveLocalMap(mapItem) {
+            try {
+                const maps = getLocalMaps();
+                const existingIdx = maps.findIndex(m => m.id === mapItem.id);
+                if (existingIdx >= 0) maps[existingIdx] = mapItem; else maps.push(mapItem);
+                localStorage.setItem('local_rhythm_maps', JSON.stringify(maps));
+            } catch(e) {}
+        }
+        function deleteLocalMap(mapId) {
+            try {
+                const maps = getLocalMaps().filter(m => m.id !== mapId);
+                localStorage.setItem('local_rhythm_maps', JSON.stringify(maps));
+            } catch(e) {}
+        }
+
+        initAuth();
+    </script>
+
+    <script>
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        
+        let GAME_SPEED = 1.5;
+        let GLOBAL_OFFSET = 0;
+        let KEYS = ['d', 'f', 'j']; 
+        let bindingIndex = -1; 
+        
+        const LANE_WIDTH = 100;
+        const TOTAL_WIDTH = LANE_WIDTH * 3;
+        const NOTE_HEIGHT = 20;
+        let JUDGE_Y = 0;
+
+        let gameState = 'MENU'; 
+        let audioCtx = null;
+        let audioStartTime = 0;
+        let tonePlayer = null; 
+        let beepSynth = null; // 비프음 재생용 신디사이저 추가
+        
+        let stats = { score: 0, combo: 0, maxCombo: 0, perfect: 0, great: 0, good: 0, miss: 0 };
+        const keyState = [false, false, false];
+        const keyPressTimes = [0, 0, 0]; // 롱노트 판정용 누른 시간 기록
+        let visualEffects = []; 
+
+        class Note {
+            constructor(data) {
+                this.time = data.time;
+                this.lane = data.lane;
+                this.type = data.type || 'short';
+                this.duration = data.duration || 0;
+                this.isHit = false;
+                this.isMissed = false;
+            }
+        }
+
+        function createMockNotes(bpm, count) {
+            let notes = [];
+            let interval = (60 / bpm) * 1000;
+            for(let i=0; i<count; i++) {
+                let lane = Math.floor(Math.random() * 3);
+                if (i % 4 === 0) lane = 1; 
+                notes.push({ time: 2000 + (i * interval), lane: lane, type: 'short' });
+            }
+            return notes;
+        }
+
+        let beatmapList = [
+            { id: "map1", title: "튜토리얼 곡 (130BPM)", difficulty: 2, uploaded: true, notes: createMockNotes(130, 20), audioUrl: null },
+            { id: "map2", title: "빠른 곡 (180BPM)", difficulty: 5, uploaded: true, notes: createMockNotes(180, 50), audioUrl: null },
+            { id: "map_custom", title: "나만의 커스텀 맵", difficulty: 5, uploaded: false, notes: [], audioUrl: null }
+        ];
+        
+        window.updateServerMaps = (serverMaps) => {
+            beatmapList = [
+                beatmapList[0], beatmapList[1], 
+                ...serverMaps, 
+                { id: "map_custom", title: "새로운 커스텀 맵", difficulty: 5, uploaded: false, notes: [], audioUrl: null }
+            ];
+            if (!document.getElementById('song-select-ui').classList.contains('hidden')) {
+                renderSongList();
+            }
+        };
+        
+        let currentMapIndex = 0;
+        let activeNotes = [];
+        let recordedNotes = []; 
+
+        // 커스텀 토스트 알림 함수
+        function showToast(msg, isError = false) {
+            const toast = document.getElementById('toast-msg');
+            toast.innerText = msg;
+            toast.className = `absolute top-10 left-1/2 transform -translate-x-1/2 px-8 py-4 rounded-full shadow-2xl z-50 transition-all duration-300 font-bold text-lg ${isError ? 'bg-red-600' : 'bg-blue-600'} text-white`;
+            toast.style.opacity = 1;
+            toast.style.transform = 'translate(-50%, 0)';
+            setTimeout(() => {
+                toast.style.opacity = 0;
+                toast.style.transform = 'translate(-50%, -20px)';
+            }, 3000);
+        }
+
+        function showUI(uiId) {
+            ['menu-ui', 'settings-ui', 'song-select-ui', 'game-ui', 'result-ui', 'upload-ui'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
+            document.getElementById(uiId).classList.remove('hidden');
+            if(uiId === 'song-select-ui') renderSongList();
+        }
+
+        function startKeyBind(index) {
+            bindingIndex = index;
+            document.getElementById('keybind-msg').style.opacity = 1;
+            document.getElementById(`key-btn-${index}`).innerText = "?";
+            document.getElementById(`key-btn-${index}`).classList.add('animate-pulse', 'bg-blue-600');
+        }
+
+        // 설정 UI 업데이트 (DOM 요소 존재 확인)
+        function updateSettingsUI() {
+            try {
+                for (let i = 0; i < 3; i++) {
+                    const btn = document.getElementById(`key-btn-${i}`);
+                    if (btn) btn.innerText = KEYS[i].toUpperCase();
+                }
+                
+                const speedSlider = document.getElementById('speed-slider');
+                const speedVal = document.getElementById('speed-val');
+                if (speedSlider && speedVal) {
+                    speedSlider.value = GAME_SPEED;
+                    speedVal.innerText = GAME_SPEED.toFixed(1) + "x";
+                }
+                
+                const offsetSlider = document.getElementById('offset-slider');
+                const offsetVal = document.getElementById('offset-val');
+                if (offsetSlider && offsetVal) {
+                    offsetSlider.value = GLOBAL_OFFSET;
+                    offsetVal.innerText = GLOBAL_OFFSET + "ms";
+                }
+            } catch(e) {
+                console.warn("설정 UI 업데이트 오류:", e.message);
+            }
+        }
+        window.updateSettingsUI = updateSettingsUI;
+
+        window.addEventListener('keydown', (e) => {
+            if (bindingIndex !== -1) {
+                const key = e.key.toLowerCase();
+                KEYS[bindingIndex] = key;
+                const btn = document.getElementById(`key-btn-${bindingIndex}`);
+                btn.innerText = key.toUpperCase();
+                btn.classList.remove('animate-pulse', 'bg-blue-600');
+                bindingIndex = -1;
+                document.getElementById('keybind-msg').style.opacity = 0;
+                scheduleSettingsSave(); // 조작키 저장
+                return;
+            }
+
+            if (gameState === 'PLAYING' || gameState === 'RECORDING') {
+                const key = e.key.toLowerCase();
+                const idx = KEYS.indexOf(key);
+                if (idx !== -1 && !keyState[idx]) processInput(idx);
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            const idx = KEYS.indexOf(key);
+            if (idx !== -1) releaseInput(idx);
+        });
+
+        document.getElementById('speed-slider').addEventListener('input', (e) => { 
+            GAME_SPEED = parseFloat(e.target.value); 
+            document.getElementById('speed-val').innerText = GAME_SPEED.toFixed(1) + "x"; 
+            scheduleSettingsSave(); // 설정 저장
+        });
+        document.getElementById('offset-slider').addEventListener('input', (e) => { 
+            GLOBAL_OFFSET = parseInt(e.target.value); 
+            document.getElementById('offset-val').innerText = GLOBAL_OFFSET + "ms"; 
+            scheduleSettingsSave(); // 설정 저장
+        });
+
+        function renderSongList() {
+            const listEl = document.getElementById('song-list');
+            listEl.innerHTML = '';
+            
+            beatmapList.forEach((map, idx) => {
+                const isSelected = (idx === currentMapIndex);
+                const bgClass = isSelected ? 'bg-blue-900 border-blue-500' : 'bg-gray-800 border-gray-700 hover:bg-gray-750';
+                
+                // 난이도에 따른 색상
+                const diffColor = (map.difficulty || 5) <= 3 ? '🟢' : (map.difficulty || 5) <= 6 ? '🟡' : '🔴';
+                
+                const btn = document.createElement('div');
+                btn.className = `p-4 rounded-xl border cursor-pointer transition-colors ${bgClass}`;
+                btn.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <h4 class="font-bold text-lg text-white">${map.title}</h4>
+                        <span class="text-xs font-bold text-gray-300">${diffColor} ${map.difficulty || 5}</span>
+                    </div>
+                `;
+                btn.onclick = () => selectMap(idx);
+                listEl.appendChild(btn);
+            });
+            updateMapInfo();
+        }
+
+        function selectMap(idx) {
+            currentMapIndex = idx;
+            renderSongList();
+        }
+
+        function updateMapInfo() {
+            const map = beatmapList[currentMapIndex];
+            document.getElementById('info-title').innerText = map.title;
+            // artist 삭제 (데이터베이스에 없으면 제거)
+            if (document.getElementById('info-artist')) {
+                document.getElementById('info-artist').innerText = '';
+            }
+            document.getElementById('info-notes').innerText = map.notes.length;
+            document.getElementById('info-upload').innerText = map.uploaded ? "서버에 저장됨" : "로컬 기기 (미등록)";
+            document.getElementById('info-upload').className = map.uploaded ? "text-green-400 font-bold" : "text-yellow-400 font-bold";
+            document.getElementById('info-creator').innerText = map.creator || (map.user_id ? `User(${map.user_id.slice(0,5)})` : "익명/System");
+
+            const statusEl = document.getElementById('upload-status');
+            if (map.audioUrl || map.localAudioUrl) {
+                statusEl.innerText = "오디오 재생 준비됨";
+                statusEl.classList.remove('hidden');
+                statusEl.classList.replace('text-yellow-400', 'text-green-400');
+            } else {
+                statusEl.innerText = "오디오 없음 (비프음 대체)";
+                statusEl.classList.remove('hidden');
+                statusEl.classList.replace('text-green-400', 'text-yellow-400');
+            }
+
+            const ownerControls = document.getElementById('owner-controls');
+            const userObj = window.currentUser;
+            
+            // 현재 사용자의 고유 ID와 맵의 creator_unique_id가 같은지 확인
+            // fallback: creator_unique_id가 없으면 user_id로 비교
+            const isOwner = map.uploaded && userObj && userObj.uniqueId && (
+                (map.creator_unique_id && userObj.uniqueId === map.creator_unique_id) ||
+                (!map.creator_unique_id && userObj.uid === map.user_id)
+            );
+            
+            console.log("권한 체크 - 현재 ID:", userObj?.uniqueId, "맵 creator_unique_id:", map.creator_unique_id, "isOwner:", isOwner);
+            
+            if (isOwner) {
+                ownerControls.classList.remove('hidden');
+            } else {
+                ownerControls.classList.add('hidden');
+            }
+        }
+        window.updateMapInfo = updateMapInfo;
+
+        // 맵 삭제 처리
+        async function deleteCurrentMap() {
+            const map = beatmapList[currentMapIndex];
+            if (!map || !map.uploaded) return;
+
+            if (window.confirm ? true : true) { // iframe 호환 confirmation
+                showToast("맵 삭제 중...");
+                const success = await window.deleteMapFromServer(map.id);
+                if (success) {
+                    showToast(`${map.title} 맵이 성공적으로 삭제되었습니다.`);
+                    beatmapList.splice(currentMapIndex, 1);
+                    currentMapIndex = Math.max(0, currentMapIndex - 1);
+                    renderSongList();
+                }
+            }
+        }
+
+        // 맵 수정 모달 열기/닫기/저장
+        function openEditMapModal() {
+            const map = beatmapList[currentMapIndex];
+            document.getElementById('edit-title').value = map.title;
+            // artist 삭제 (데이터베이스에 없으면 제거)
+            if (document.getElementById('edit-artist')) {
+                document.getElementById('edit-artist').value = '';
+            }
+            document.getElementById('edit-map-modal').classList.remove('hidden');
+        }
+
+        function closeEditMapModal() {
+            document.getElementById('edit-map-modal').classList.add('hidden');
+        }
+
+        async function saveEditMap() {
+            const map = beatmapList[currentMapIndex];
+            const newTitle = document.getElementById('edit-title').value.trim();
+
+            if (!newTitle) return showToast("곡 제목을 입력해주세요.", true);
+
+            map.title = newTitle;
+            // artist 제거 (DB에 없으므로)
+            if (document.getElementById('edit-artist')) {
+                map.artist = document.getElementById('edit-artist').value.trim();
+            }
+
+            if (map.uploaded && map.id) {
+                await window.updateMapInServer(map.id, { title: newTitle, artist: map.artist || "" });
+            }
+
+            closeEditMapModal();
+            renderSongList();
+            showToast("맵 정보가 업데이트 되었습니다.");
+        }
+
+        // 난이도 슬라이더 이벤트
+        function initUploadModal() {
+            const difficultySlider = document.getElementById('upload-difficulty');
+            if (!difficultySlider) return;
+            
+            difficultySlider.addEventListener('input', (e) => {
+                document.getElementById('difficulty-display').innerText = e.target.value;
+            });
+        }
+
+        // 업로드 정보 모달 열기
+        function openUploadInfoModal() {
+            document.getElementById('upload-info-modal').classList.remove('hidden');
+            const map = beatmapList[currentMapIndex];
+            document.getElementById('upload-title').value = map.title || '';
+            document.getElementById('upload-difficulty').value = 5;
+            document.getElementById('difficulty-display').innerText = '5';
+            document.getElementById('upload-title').focus();
+        }
+
+        // 업로드 정보 모달 닫기
+        function closeUploadInfoModal() {
+            document.getElementById('upload-info-modal').classList.add('hidden');
+        }
+
+        // 업로드 정보 확인 및 업로드 진행
+        async function confirmUploadInfo() {
+            const title = document.getElementById('upload-title').value.trim();
+            if (!title) {
+                showToast("곡 제목을 입력해주세요.", true);
+                return;
+            }
+            
+            const difficulty = parseInt(document.getElementById('upload-difficulty').value) || 5;
+            const map = beatmapList[currentMapIndex];
+            map.title = title;
+            map.difficulty = difficulty;
+            
+            closeUploadInfoModal();
+            
+            // 실제 업로드 진행
+            if (!window.uploadMapToServer) {
+                return showToast('저장 모듈이 로드되지 않았습니다.', true);
+            }
+
+            showUI('upload-ui');
+            const progress = document.getElementById('upload-progress');
+            const text = document.getElementById('upload-text');
+            progress.style.width = `0%`;
+            text.innerText = "연결을 준비하는 중...";
+
+            const success = await window.uploadMapToServer(map, (percent, message) => {
+                progress.style.width = `${Math.min(percent, 99)}%`;
+                text.innerText = message;
+            });
+
+            if (success) {
+                showToast(`${map.title} 맵이 성공적으로 업로드되었습니다!`);
+                map.uploaded = true;
+                renderSongList();
+            }
+            
+            hideUI('upload-ui');
+        }
+
+        async function handleAudioUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const statusEl = document.getElementById('upload-status');
+            statusEl.innerText = "로컬 오디오 처리 중...";
+            statusEl.classList.remove('hidden');
+            statusEl.classList.replace('text-green-400', 'text-yellow-400');
+
+            try {
+                const objectUrl = URL.createObjectURL(file);
+                beatmapList[currentMapIndex].localAudioUrl = objectUrl; // 로컬 즉시 재생용 URL
+                beatmapList[currentMapIndex].file = file; // 서버에 업로드할 원본 파일 보관
+                beatmapList[currentMapIndex].title = file.name.replace(/\.[^/.]+$/, "");
+                
+                renderSongList(); 
+                showToast("음원이 기기에 로드되었습니다. 이제 플레이하거나 녹화할 수 있습니다.");
+            } catch (error) {
+                showToast("오디오 로드에 실패했습니다.", true);
+            }
+        }
+
+        // 맵 업로드 버튼 클릭
+        async function uploadMap() {
+            const map = beatmapList[currentMapIndex];
+            if (map.uploaded && !map.isLocalSaved) return showToast('이미 서버에 업로드 된 맵입니다!', true);
+            if (!map.notes || map.notes.length === 0) return showToast('노트가 하나도 없습니다. 실시간 패턴 녹화를 먼저 진행하세요.', true);
+
+            // 업로드 정보 모달 표시 (이름/난이도 입력)
+            initUploadModal();
+            openUploadInfoModal();
+        }
+
+        function hideUI(uiId) {
+            document.getElementById(uiId).classList.add('hidden');
+        }
+
+        function getCurrentTime() {
+            // Transport(재생 엔진) 상태를 기준으로 정확한 시간 반환
+            if (Tone.Transport.state === "started") return Tone.Transport.seconds * 1000;
+            return (Tone.now() - audioStartTime) * 1000; 
+        }
+
+        function processInput(laneIndex) {
+            keyState[laneIndex] = true;
+            keyPressTimes[laneIndex] = Date.now();            
+            let currentTime = getCurrentTime();
+
+            if (gameState === 'PLAYING') {
+                const judgeTime = currentTime - GLOBAL_OFFSET;
+                let targetNote = activeNotes.find(n => !n.isHit && !n.isMissed && n.lane === laneIndex);
+                if (targetNote) {
+                    const timeDiff = Math.abs(targetNote.time - judgeTime);
+                    if (timeDiff <= 120) {
+                        targetNote.isHit = true;
+                        if (timeDiff <= 30) judge("PERFECT");
+                        else if (timeDiff <= 70) judge("GREAT");
+                        else judge("GOOD");
+                        visualEffects.push({ lane: laneIndex, y: JUDGE_Y, time: Date.now(), type: 'hit' });
+                    }
+                }
+            } 
+            else if (gameState === 'RECORDING') {
+                // 50ms 이내의 동시 입력은 같은 시간으로 정렬 (보정 로직)
+                if (recordedNotes.length > 0 && Math.abs(currentTime - recordedNotes[recordedNotes.length - 1].time) <= 40) {
+                    currentTime = recordedNotes[recordedNotes.length - 1].time;
+                }
+
+                // 입력 시간을 노트로 즉시 기록
+                recordedNotes.push({ time: currentTime, lane: laneIndex, type: 'short' }); 
+                visualEffects.push({ lane: laneIndex, y: JUDGE_Y, time: Date.now(), type: 'record' });
+                // 녹화 모드에서는 타격음을 재생하지 않음 (요청사항 반영)
+            }
+        }
+
+        function releaseInput(laneIndex) {
+            if (!keyState[laneIndex]) return;
+            keyState[laneIndex] = false;
+            
+            // 롱노트 판정 (요청사항 반영)
+            if (gameState === 'RECORDING') {
+                const pressDuration = Date.now() - keyPressTimes[laneIndex];
+                if (pressDuration >= 270) { // 0.25초 이상 누름
+                    // 최근에 추가된 짧은 노트를 롱노트로 변환
+                    for (let i = recordedNotes.length - 1; i >= 0; i--) {
+                        if (recordedNotes[i].lane === laneIndex && recordedNotes[i].type === 'short') {
+                            recordedNotes[i].type = 'long';
+                            recordedNotes[i].duration = pressDuration;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        function judge(type) {
+            let pts = 0;
+            const judgeEl = document.getElementById('judge-display');
+            
+            if (type === "PERFECT") { pts = 300; stats.perfect++; judgeEl.className = "judge-text text-blue-400"; }
+            else if (type === "GREAT") { pts = 100; stats.great++; judgeEl.className = "judge-text text-green-400"; }
+            else if (type === "GOOD") { pts = 50; stats.good++; judgeEl.className = "judge-text text-yellow-400"; }
+            else if (type === "MISS") { pts = 0; stats.miss++; stats.combo = 0; judgeEl.className = "judge-text text-red-500"; }
+
+            if (type !== "MISS") {
+                stats.combo++;
+                if (stats.combo > stats.maxCombo) stats.maxCombo = stats.combo;
+                stats.score += pts + (stats.combo * 10);
+            }
+
+            document.getElementById('score-text').innerText = String(stats.score).padStart(7, '0');
+            const totalHits = stats.perfect + stats.great + stats.good + stats.miss;
+            const currentAcc = totalHits === 0 ? 100 : ((stats.perfect*300 + stats.great*100 + stats.good*50) / (totalHits*300)) * 100;
+            document.getElementById('acc-text').innerText = currentAcc.toFixed(2) + "%";
+
+            const comboEl = document.getElementById('combo-text');
+            const labelEl = document.getElementById('combo-label');
+            if (stats.combo > 3) {
+                comboEl.innerText = stats.combo;
+                comboEl.style.opacity = 1; labelEl.style.opacity = 1;
+            } else {
+                comboEl.style.opacity = 0; labelEl.style.opacity = 0;
+            }
+
+            judgeEl.innerText = type;
+            judgeEl.style.display = 'block';
+            judgeEl.style.animation = 'none';
+            judgeEl.offsetHeight; 
+            judgeEl.style.animation = null;
+        }
+
+        async function startGame(mode) {
+            const map = beatmapList[currentMapIndex];
+            
+            showUI('game-ui');
+            document.getElementById('play-hud').classList.add('hidden');
+            document.getElementById('record-hud').classList.add('hidden');
+            document.getElementById('record-controls').classList.add('hidden');
+            
+            try {
+                await Tone.start();
+            } catch (e) {
+                console.error("Tone.start error:", e);
+                showToast("오디오 초기화 에러가 발생했습니다.", true);
+                return showUI('song-select-ui');
+            }
+            
+            if (!beepSynth) {
+                beepSynth = new Tone.PolySynth(Tone.Synth).toDestination();
+                beepSynth.volume.value = -10;
+            }
+            
+            if (tonePlayer) { tonePlayer.dispose(); tonePlayer = null; }
+            Tone.Transport.stop();
+            Tone.Transport.cancel(); // 이전 스케줄링(비프음 등) 초기화
+            Tone.Transport.position = 0;
+            
+            audioStartTime = Tone.now();
+            visualEffects = [];
+
+            // 오디오 버퍼가 완전히 로드되도록 대기
+            const urlToLoad = map.localAudioUrl || map.audioUrl;
+            if (urlToLoad) {
+                try {
+                    tonePlayer = new Tone.Player(urlToLoad).toDestination();
+                    await Tone.loaded();
+                } catch(e) {
+                    console.error("Tone.Player load failed", e);
+                    showToast("오디오 로딩에 실패했습니다. (지원되지 않는 형식 등)", true);
+                    return showUI('song-select-ui');
+                }
+            }
+
+            if (mode === 'PLAY') {
+                if (!map.notes || map.notes.length === 0) { showToast('노트가 없는 맵입니다!', true); return showUI('song-select-ui'); }
+                
+                gameState = 'PLAYING';
+                document.getElementById('play-hud').classList.remove('hidden');
+                activeNotes = map.notes.map(n => new Note(n)).sort((a, b) => a.time - b.time);
+                
+                stats = { score: 0, combo: 0, maxCombo: 0, perfect: 0, great: 0, good: 0, miss: 0 };
+                document.getElementById('score-text').innerText = "0000000";
+                document.getElementById('acc-text').innerText = "100.00%";
+                document.getElementById('judge-display').style.display = 'none';
+                document.getElementById('combo-text').style.opacity = 0;
+                document.getElementById('combo-label').style.opacity = 0;
+
+                if (tonePlayer) {
+                    tonePlayer.sync().start(0);
+                } else {
+                    // 음악 파일이 없으면 Transport 엔진에 맞춰 비프음 스케줄링
+                    activeNotes.forEach(note => {
+                        const timeInSec = (note.time / 1000) + (GLOBAL_OFFSET / 1000);
+                        if (timeInSec >= 0) {
+                            Tone.Transport.schedule((time) => {
+                                beepSynth.triggerAttackRelease("C5", "32n", time);
+                            }, timeInSec);
+                        }
+                    });
+                }
+                Tone.Transport.start();
+            } 
+            else if (mode === 'RECORD') {
+                gameState = 'RECORDING';
+                document.getElementById('record-hud').classList.remove('hidden');
+                document.getElementById('record-controls').classList.remove('hidden');
+                recordedNotes = []; 
+                
+                if (tonePlayer) {
+                    tonePlayer.sync().start(0);
+                }
+                Tone.Transport.start();
+            }
+            requestAnimationFrame(drawGame);
+        }
+
+        function stopRecording() {
+            gameState = 'MENU';
+            
+            Tone.Transport.stop();
+            Tone.Transport.cancel();
+            
+            if(tonePlayer) {
+                tonePlayer.dispose();
+                tonePlayer = null;
+            }
+            
+            if(recordedNotes.length > 0) {
+                beatmapList[currentMapIndex].notes = [...recordedNotes];
+                beatmapList[currentMapIndex].uploaded = false; 
+                showToast(`총 ${recordedNotes.length}개의 노트가 저장되었습니다. '서버 업로드'를 눌러 공유해보세요!`);
+            } else {
+                showToast("기록된 노트가 없습니다.", true);
+            }
+            showUI('song-select-ui');
+        }
+
+        function drawGame() {
+            if (gameState !== 'PLAYING' && gameState !== 'RECORDING') return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const currentTime = getCurrentTime();
+            const judgeTime = currentTime - GLOBAL_OFFSET;
+            const startX = (canvas.width - TOTAL_WIDTH) / 2;
+
+            ctx.fillStyle = 'rgba(20, 20, 25, 0.8)';
+            ctx.fillRect(startX, 0, TOTAL_WIDTH, canvas.height);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)'; ctx.lineWidth = 2;
+            for(let i=1; i<3; i++) { ctx.beginPath(); ctx.moveTo(startX + (LANE_WIDTH * i), 0); ctx.lineTo(startX + (LANE_WIDTH * i), canvas.height); ctx.stroke(); }
+
+            for(let i=0; i<3; i++) {
+                if (keyState[i]) {
+                    const grad = ctx.createLinearGradient(0, JUDGE_Y, 0, JUDGE_Y - 300);
+                    grad.addColorStop(0, gameState==='RECORDING' ? 'rgba(255, 100, 100, 0.4)' : 'rgba(100, 200, 255, 0.4)');
+                    grad.addColorStop(1, 'rgba(0,0,0,0)');
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(startX + (i * LANE_WIDTH), 0, LANE_WIDTH, JUDGE_Y);
+                }
+                ctx.strokeStyle = keyState[i] ? 'white' : 'gray';
+                ctx.lineWidth = 4;
+                ctx.strokeRect(startX + (i * LANE_WIDTH), JUDGE_Y - (NOTE_HEIGHT/2), LANE_WIDTH, NOTE_HEIGHT);
+                
+                ctx.fillStyle = 'gray';
+                ctx.font = '20px Inter';
+                ctx.textAlign = 'center';
+                ctx.fillText(KEYS[i].toUpperCase(), startX + (i * LANE_WIDTH) + (LANE_WIDTH/2), JUDGE_Y + 50);
+            }
+
+            ctx.strokeStyle = gameState==='RECORDING' ? 'rgba(255, 100, 100, 0.5)' : 'rgba(255, 255, 255, 0.5)';
+            ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(startX, JUDGE_Y); ctx.lineTo(startX + TOTAL_WIDTH, JUDGE_Y); ctx.stroke();
+
+            const now = Date.now();
+            visualEffects = visualEffects.filter(ef => now - ef.time < 300);
+            visualEffects.forEach(ef => {
+                const progress = (now - ef.time) / 300;
+                ctx.fillStyle = ef.type === 'record' ? `rgba(255, 50, 50, ${1 - progress})` : `rgba(50, 200, 255, ${1 - progress})`;
+                ctx.fillRect(startX + (ef.lane * LANE_WIDTH), ef.y - 10 - (progress * 20), LANE_WIDTH, 20 + (progress * 40));
+            });
+
+            if (gameState === 'PLAYING') {
+                let remainingNotes = 0;
+                ctx.fillStyle = '#4facfe'; ctx.shadowBlur = 10; ctx.shadowColor = '#00f2fe';
+
+                for (let i = 0; i < activeNotes.length; i++) {
+                    let note = activeNotes[i];
+                    if (!note.isHit && !note.isMissed && (judgeTime - note.time) > 120) {
+                        note.isMissed = true; judge("MISS"); 
+                    }
+                    if (note.isHit || note.isMissed) continue;
+                    
+                    remainingNotes++;
+                    const noteY = JUDGE_Y - ((note.time - judgeTime) * GAME_SPEED);
+                    if (noteY > canvas.height + 50 || noteY < -canvas.height) continue;
+
+                    ctx.beginPath();
+                    if (note.type === 'long') {
+                        const noteHeight = note.duration * GAME_SPEED;
+                        ctx.roundRect(startX + (note.lane * LANE_WIDTH) + 2, noteY - noteHeight, LANE_WIDTH - 4, noteHeight, 5);
+                    } else {
+                        ctx.roundRect(startX + (note.lane * LANE_WIDTH) + 2, noteY - (NOTE_HEIGHT/2), LANE_WIDTH - 4, NOTE_HEIGHT, 5);
+                    }
+                    ctx.fill();
+                }
+                ctx.shadowBlur = 0;
+
+                // 곡 종료 및 결과창 이동 조건 (버그 방지 방어코드 추가)
+                if (remainingNotes === 0 && activeNotes.length > 0 && (judgeTime > activeNotes[activeNotes.length-1].time + 1000)) {
+                    gameState = 'RESULT';
+                    Tone.Transport.stop();
+                    Tone.Transport.cancel();
+                    if(tonePlayer) { tonePlayer.dispose(); tonePlayer = null; }
+                    showUI('result-ui');
+                    document.getElementById('res-perfect').innerText = stats.perfect;
+                    document.getElementById('res-great').innerText = stats.great;
+                    document.getElementById('res-good').innerText = stats.good;
+                    document.getElementById('res-miss').innerText = stats.miss;
+                    document.getElementById('res-maxcombo').innerText = stats.maxCombo;
+                    document.getElementById('res-score').innerText = stats.score;
+                }
+            } 
+            else if (gameState === 'RECORDING') {
+                ctx.fillStyle = '#ff6b6b'; ctx.shadowBlur = 10; ctx.shadowColor = '#ff6b6b';
+                
+                for (let i = Math.max(0, recordedNotes.length - 20); i < recordedNotes.length; i++) {
+                    let note = recordedNotes[i];
+                    const noteY = JUDGE_Y - ((currentTime - note.time) * GAME_SPEED * 0.5); 
+                    if (noteY < -canvas.height) continue;
+
+                    ctx.beginPath();
+                    if (note.type === 'long') {
+                        const noteHeight = note.duration * GAME_SPEED * 0.5;
+                        ctx.roundRect(startX + (note.lane * LANE_WIDTH) + 2, noteY - noteHeight, LANE_WIDTH - 4, noteHeight, 5);
+                    } else {
+                        ctx.roundRect(startX + (note.lane * LANE_WIDTH) + 2, noteY - (NOTE_HEIGHT/2), LANE_WIDTH - 4, NOTE_HEIGHT, 5);
+                    }
+                    ctx.fill();
+                }
+                ctx.shadowBlur = 0;
+            }
+            requestAnimationFrame(drawGame);
+        }
+
+        function resize() {
+            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+            JUDGE_Y = canvas.height * 0.8;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+    </script>
+</body>
+</html>
