@@ -14,7 +14,7 @@ const LANE_WIDTH = 100;
 const LANE_COUNT = APP_MODE === 'play' ? 4 : 3;
 const TOTAL_WIDTH = LANE_WIDTH * LANE_COUNT;
 const NOTE_HEIGHT = 20;
-const SAME_LANE_MIN_GAP_MS = 30;
+const SAME_LANE_MIN_GAP_MS = 60;
 let JUDGE_Y = 0;
 
 let gameState = 'MENU';
